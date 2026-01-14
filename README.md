@@ -1,4 +1,6 @@
-# Anscom: Enterprise-Grade Recursive File Scanner
+# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension)
+# My public python python library
+
 
 **Anscom** is a high-performance, native C extension for Python designed for systems engineers, data analysts, and developers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with zero memory overhead.
 
@@ -124,3 +126,4 @@ Binary Search Categorization: Uses a compiled binary search algorithm to identif
 I/O Throttling: The terminal output is buffered. In "Summary Mode", the progress bar updates only once per 100 files, preventing terminal I/O blocking.
 License
 MIT License. Open Source and free to use for personal and enterprise projects.
+
