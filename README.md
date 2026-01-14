@@ -28,62 +28,74 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89*
 ---
 
 ## 📦 Installation
-
 ```bash
 pip install anscom
-💻 Usage Guide
-Standard Scan
-python
-Copy code
-import anscom
-anscom.scan(".")
-Visual Tree Mode
-python
-Copy code
-import anscom
-anscom.scan(".", show_tree=True)
-Deep Scan
-python
-Copy code
-anscom.scan("C:/Users/Admin/Projects", max_depth=20, show_tree=True)
-Full Drive Scan
-python
-Copy code
-anscom.scan("A:/", max_depth=5, show_tree=False)
-⚙️ API Reference
-anscom.scan(path, max_depth=6, show_tree=False)
-
-Parameter	Type	Default	Description
-path	str	Required	Target directory
-max_depth	int	6	Recursion depth
-show_tree	bool	False	Enable tree view
-
-Returns: int total files scanned.
-
-🛡️ Smart Filter (Auto-Ignored)
-.git, node_modules, .venv, venv, build, dist, pycache, temp, tmp, .cache, .pytest_cache, .mypy_cache, site-packages, etc.
-
-📊 Report Output
-After scanning, AnsCom prints:
-
-• Summary Report
-• Detailed Extension Breakdown
-
-🏆 Performance Architecture
-• Direct OS syscalls (FindFirstFileW / readdir)
-• Binary search categorization
-• Buffered terminal output
-
-License
-MIT License
-
-yaml
-Copy code
+```
 
 ---
 
+## 💻 Usage Guide
 
+### Standard Scan
+```python
+import anscom
+anscom.scan(".")
+```
 
+### Visual Tree Mode
+```python
+import anscom
+anscom.scan(".", show_tree=True)
+```
 
+### Deep Scan
+```python
+anscom.scan("C:/Users/Admin/Projects", max_depth=20, show_tree=True)
+```
 
+### Full Drive Scan
+```python
+anscom.scan("A:/", max_depth=5, show_tree=False)
+```
 
+---
+
+## ⚙️ API Reference
+
+### `anscom.scan(path, max_depth=6, show_tree=False)`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | str | Required | Target directory |
+| `max_depth` | int | 6 | Recursion depth |
+| `show_tree` | bool | False | Enable tree view |
+
+**Returns:** `int` - total files scanned.
+
+---
+
+## 🛡️ Smart Filter (Auto-Ignored)
+
+`.git`, `node_modules`, `.venv`, `venv`, `build`, `dist`, `__pycache__`, `temp`, `tmp`, `.cache`, `.pytest_cache`, `.mypy_cache`, `site-packages`, etc.
+
+---
+
+## 📊 Report Output
+
+After scanning, AnsCom prints:
+- Summary Report
+- Detailed Extension Breakdown
+
+---
+
+## 🏆 Performance Architecture
+
+- Direct OS syscalls (`FindFirstFileW` / `readdir`)
+- Binary search categorization
+- Buffered terminal output
+
+---
+
+## License
+
+MIT License
