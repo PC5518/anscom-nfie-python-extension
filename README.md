@@ -12,9 +12,6 @@ A globally published, native C-based Python extension for filesystem intelligenc
 Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89**, allowing it to process massive filesystems instantly without flooding your terminal or exhausting system memory.
 
 ---
-# Demo
-<img width="649" height="146" alt="image" src="https://github.com/user-attachments/assets/96bcf704-224b-47ac-bb32-e8976a914776" />
-<img width="280" height="879" alt="image" src="https://github.com/user-attachments/assets/c23cc5ec-3ae9-43e5-8580-5f397bd413a2" />
 
 ## 🚀 Key Features
 
@@ -98,8 +95,12 @@ After scanning, AnsCom prints:
 - Buffered terminal output
 
 ---
+# Demo
+<img width="280" height="879" alt="image" src="https://github.com/user-attachments/assets/c23cc5ec-3ae9-43e5-8580-5f397bd413a2" />
+<img width="649" height="146" alt="image" src="https://github.com/user-attachments/assets/96bcf704-224b-47ac-bb32-e8976a914776" />
 
 ## License
 
 MIT License
+
 
