@@ -13,28 +13,28 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89*
 
 ---
 
-## 🚀 Key Features
+##  Key Features
 
-* **⚡ Native C Speed:** Written in pure C for maximum I/O throughput.
-* **🛡️ Smart Exclusion System:** Automatically hard-ignores junk directories (`node_modules`, `.venv`, `.git`, `__pycache__`, `build`, etc.).
-* **📉 Zero-Memory Streaming:** Processes files one by one in streaming fashion. Will never crash with `MemoryError`.
-* **🌳 Visual Tree Map:** Optional diagrammatic tree view.
-* **📊 Detailed Analytics:**
+* ** Native C Speed:** Written in pure C for maximum I/O throughput.
+* ** Smart Exclusion System:** Automatically hard-ignores junk directories (`node_modules`, `.venv`, `.git`, `__pycache__`, `build`, etc.).
+* ** Zero-Memory Streaming:** Processes files one by one in streaming fashion. Will never crash with `MemoryError`.
+* ** Visual Tree Map:** Optional diagrammatic tree view.
+* ** Detailed Analytics:**
   * Category Summary: Groups files by Code, Images, Video, Audio, Archives, Executables, etc.
   * Extension Breakdown: Exact counts for every file extension (`.py`, `.c`, `.png`, etc.).
-* **⏱️ Live Progress:** In-place progress counter.
-* **🛑 Safety Circuit Breaker:** Configurable recursion depth limit (Default: 6).
+* ** Live Progress:** In-place progress counter.
+* ** Safety Circuit Breaker:** Configurable recursion depth limit (Default: 6).
 
 ---
 
-## 📦 Installation
+##  Installation
 ```bash
 pip install anscom
 ```
 
 ---
 
-## 💻 Usage Guide
+##  Usage Guide
 
 ### Standard Scan
 ```python
@@ -60,7 +60,7 @@ anscom.scan("A:/", max_depth=5, show_tree=False)
 
 ---
 
-## ⚙️ API Reference
+##  API Reference
 
 ### `anscom.scan(path, max_depth=6, show_tree=False)`
 
@@ -74,13 +74,13 @@ anscom.scan("A:/", max_depth=5, show_tree=False)
 
 ---
 
-## 🛡️ Smart Filter (Auto-Ignored)
+##  Smart Filter (Auto-Ignored)
 
 `.git`, `node_modules`, `.venv`, `venv`, `build`, `dist`, `__pycache__`, `temp`, `tmp`, `.cache`, `.pytest_cache`, `.mypy_cache`, `site-packages`, etc.
 
 ---
 
-## 📊 Report Output
+##  Report Output
 
 After scanning, AnsCom prints:
 - Summary Report
@@ -88,7 +88,7 @@ After scanning, AnsCom prints:
 
 ---
 
-## 🏆 Performance Architecture
+##  Performance Architecture
 
 - Direct OS syscalls (`FindFirstFileW` / `readdir`)
 - Binary search categorization
@@ -102,5 +102,6 @@ After scanning, AnsCom prints:
 ## License
 
 MIT License
+
 
 
