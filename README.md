@@ -92,7 +92,7 @@ After scanning, AnsCom prints:
 
 - Direct OS syscalls (`FindFirstFileW` / `readdir`)
 - Binary search categorization
-- Buffered terminal output
+- Buffered terminal output.
 
 ---
 # Demo
@@ -102,6 +102,7 @@ After scanning, AnsCom prints:
 ## License
 
 MIT License
+
 
 
 
