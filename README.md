@@ -7,8 +7,7 @@ A globally published, native C-based Python extension for filesystem intelligenc
 
 ---
 
-**AnsCom NFIE** is a high-performance, native C extension for Python designed for systems engineers, data analysts, and developers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with zero memory overhead.
-
+**AnsCom NFIE** is a high-performance, native C extension for Python designed for systems engineers, data analysts, and developers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with Constant-memory streaming traversal.
 Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89**, allowing it to process massive filesystems instantly without flooding your terminal or exhausting system memory.
 
 ---
@@ -102,6 +101,7 @@ After scanning, AnsCom prints:
 ## License
 
 MIT License
+
 
 
 
