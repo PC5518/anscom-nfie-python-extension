@@ -7,9 +7,9 @@
  *              - Max Recursion Depth Control
  *              - Live In-Place Progress Bar
  *              - Summary-Only Mode by default
- * 
+ * #
  * Compilation: python setup.py build_ext --inplace
- */
+ * update fix_2/21/2026: includes logic to ignore junk or corrupted files  (new version available on PyPl)
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -443,4 +443,5 @@ static struct PyModuleDef anscommodule = {
 
 PyMODINIT_FUNC PyInit_anscom(void) {
     return PyModule_Create(&anscommodule);
+
 }
