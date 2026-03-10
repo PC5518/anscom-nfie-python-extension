@@ -178,16 +178,6 @@ Because Anscom runs in native C, it provides significantly faster scanning perfo
 
 ---
 
-## API Reference
-
-### `anscom.scan(path, max_depth=None)`
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | — | Directory path to scan |
-| `max_depth` | `int` | `None` | Maximum recursion depth. `None` means unlimited. |
-
----
 
 ## Contributing
 
@@ -201,6 +191,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 MIT License
+
 
 
 
