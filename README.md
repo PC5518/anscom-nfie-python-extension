@@ -14,15 +14,15 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89*
 
 ##  Key Features
 
-* ** Native C Speed:** Written in pure C for maximum I/O throughput.
-* ** Smart Exclusion System:** Automatically hard-ignores junk directories (`node_modules`, `.venv`, `.git`, `__pycache__`, `build`, etc.).
-* ** Zero-Memory Streaming:** Processes files one by one in streaming fashion. Will never crash with `MemoryError`.
-* ** Visual Tree Map:** Optional diagrammatic tree view.
-* ** Detailed Analytics:**
+* **Native C Speed:** Written in pure C for maximum I/O throughput.
+* **Smart Exclusion System:** Automatically hard-ignores junk directories (`node_modules`, `.venv`, `.git`, `__pycache__`, `build`, etc.).
+* **Zero-Memory Streaming:** Processes files one by one in streaming fashion. Will never crash with `MemoryError`.
+* **Visual Tree Map:** Optional diagrammatic tree view.
+* **Detailed Analytics:**
   * Category Summary: Groups files by Code, Images, Video, Audio, Archives, Executables, etc.
   * Extension Breakdown: Exact counts for every file extension (`.py`, `.c`, `.png`, etc.).
-* ** Live Progress:** In-place progress counter.
-* ** Safety Circuit Breaker:** Configurable recursion depth limit (Default: 6).
+* **Live Progress:** In-place progress counter.
+* **Safety Circuit Breaker:** Configurable recursion depth limit (Default: 6).
 
 ---
 
@@ -189,6 +189,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 MIT License
+
 
 
 
