@@ -30,8 +30,11 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89*
 ```bash
 pip install anscom
 ```
+```bash
+pip3 install anscom
+python3 -m pip install anscom
+```
 
----
 
 ##  Usage Guide
 
@@ -189,6 +192,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 MIT License
+
 
 
 
