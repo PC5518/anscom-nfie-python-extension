@@ -99,55 +99,9 @@ After scanning, AnsCom prints:
 <img width="649" height="146" alt="image" src="https://github.com/user-attachments/assets/96bcf704-224b-47ac-bb32-e8976a914776" />
 
 
-# Anscom
-
-**Fast, native filesystem analysis for developers, data scientists, and system administrators.**
-
-Anscom is a high-performance directory scanner written in C with a Python interface. It instantly profiles any directory — counting files, categorizing types, and surfacing meaningful project structure — while automatically filtering out dependency noise like `node_modules` and `__pycache__`.
-
----
-
-## Features
-
-- **Instant file-type breakdown** — source code, images, documents, archives, and more
-- **Language distribution** — understand what your codebase is made of at a glance
-- **Noise filtering** — automatically skips `.git`, `node_modules`, `.venv`, `build`, `dist`, and other dependency/cache directories
-- **Configurable depth** — control how deep the scan recurses
-- **Native C performance** — significantly faster than pure Python filesystem tools
-
----
-
-## Installation
-
-```bash
-pip install anscom
-```
-
----
-
-## Quick Start
-
-```python
-import anscom
-
-anscom.scan(".")
-```
-
-**Example output:**
-
-```
-=== SUMMARY REPORT ===
-Code Files:    120
-Images:         15
-Documents:       8
-Total Files:   143
-```
-
----
-
 ## Use Cases
 
-### 🗂️ Codebase Analysis
+### Codebase Analysis
 
 Quickly understand the structure of a large repository before diving in.
 
@@ -164,7 +118,7 @@ Get answers like:
 
 ---
 
-### 🧠 Dataset Inspection
+###  Dataset Inspection
 
 Machine learning projects often contain datasets with thousands of files spread across nested directories. Anscom lets you verify a dataset's composition before kicking off a training run.
 
@@ -179,7 +133,7 @@ Surfaces:
 
 ---
 
-### 💾 Storage Auditing
+###  Storage Auditing
 
 Understand what's consuming space in a directory — whether it's archives piling up, temporary files accumulating, or an unexpected file type dominating.
 
@@ -194,7 +148,7 @@ Useful for answering:
 
 ---
 
-### 🌲 Large Filesystem Exploration
+###  Large Filesystem Exploration
 
 Modern development environments can contain tens of thousands of files once dependencies are included. Anscom focuses only on what matters by automatically skipping:
 
@@ -247,6 +201,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 MIT License
+
 
 
 
