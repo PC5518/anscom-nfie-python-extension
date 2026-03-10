@@ -27,9 +27,11 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in pure **C89*
 ---
 
 ##  Installation (From PyPl or CMD)
+For Windows:
 ```bash
 pip install anscom
 ```
+For Mac and Linux:
 ```bash
 pip3 install anscom
 python3 -m pip install anscom
@@ -192,6 +194,7 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 MIT License
+
 
 
 
