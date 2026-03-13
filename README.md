@@ -46,6 +46,7 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 pip install anscom
 ```
 
+
 > **Note for Windows users:** Compiling from source requires the "Desktop development with C++" workload from Visual Studio Build Tools.
 
 ### Verify installation
@@ -384,4 +385,5 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 ## License
 
 MIT License
+
 
