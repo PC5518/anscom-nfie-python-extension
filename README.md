@@ -369,7 +369,7 @@ writer.f.close()
 
 | Version | Date | Notes |
 |---|---|---|
-| **1.0.0** | March 2026 | **Major release.** Terabyte-scale filesystem scanning — previous versions were limited in the volume they could reliably traverse. This release introduces a multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks during scan, slab path allocator (zero heap allocation during traversal), extension whitelisting, silent mode, min_size filter, and live callback interface. Memory usage is now bounded regardless of filesystem size. |
+| **1.0.0** | 13 March 2026 | **Major release.** Terabyte-scale filesystem scanning — previous versions were limited in the volume they could reliably traverse. This release introduces a multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks during scan, slab path allocator (zero heap allocation during traversal), extension whitelisting, silent mode, min_size filter, and live callback interface. Memory usage is now bounded regardless of filesystem size. |
 | 0.6.0 | Jan 15, 2026 | added features like data tree and many more |
 | 0.5.0 | Jan 15, 2026 | — |
 | 0.4.0 | Jan 15, 2026 | Release of the basic version with the concept of anscom|
