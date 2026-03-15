@@ -1,12 +1,14 @@
 /*
  * anscom.c
  *
- * Version: v1.0.0 (Tree Structure & DFS Fix) flagship version
+ * Version: v1.3.0 (Tree Structure & DFS Fix) flagship version
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
  * update fix_2/21/2026: includes logic to ignore junk or corrupted files  (new version available on PyPl)
  * update: new  version released:-> 13 March 2026 : added features which can analyze directories at terabyte scale under seconds without any lag! via n.log(n). making the most powerful version than ever before !
+ * update v1.3.0: added export_json, export_excel, and export_tree features
+ */
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -170,6 +172,8 @@ typedef struct {
     PyObject *callback;
     uint8_t *allowed_exts;
     int ignore_junk;
+    /* === NEW FEATURE: export_tree === */
+    FILE *tree_file;
 } ScanConfig;
 
 static volatile uint64_t g_atomic_scanned = 0;
@@ -393,6 +397,14 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                 PySys_WriteStdout("  |-- [%s]\n", filenameUtf8); /* Bracket indicates folder */
                 PyGILState_Release(gstate);
+
+                /* === NEW FEATURE: export_tree === */
+                if (ts->config->tree_file) {
+                    for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
+                    fprintf(ts->config->tree_file, "  |-- [%s]\n", filenameUtf8);
+                    fflush(ts->config->tree_file);
+                }
+
                 mutex_unlock(&ts->queue->lock);
                 
                 /* Immediate recursive call enforces strict Depth-First Search for the tree */
@@ -417,6 +429,14 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                 PySys_WriteStdout("  |-- %s\n", filenameUtf8); /* No bracket indicates file */
                 PyGILState_Release(gstate);
+
+                /* === NEW FEATURE: export_tree === */
+                if (ts->config->tree_file) {
+                    for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
+                    fprintf(ts->config->tree_file, "  |-- %s\n", filenameUtf8);
+                    fflush(ts->config->tree_file);
+                }
+
                 mutex_unlock(&ts->queue->lock);
             }
             identify_and_count(filenameUtf8, ts);
@@ -461,6 +481,14 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                     for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                     PySys_WriteStdout("  |--[%s]\n", d->d_name);
                     PyGILState_Release(gstate);
+
+                    /* === NEW FEATURE: export_tree === */
+                    if (ts->config->tree_file) {
+                        for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
+                        fprintf(ts->config->tree_file, "  |-- [%s]\n", d->d_name);
+                        fflush(ts->config->tree_file);
+                    }
+
                     mutex_unlock(&ts->queue->lock);
                     
                     process_dir_recursive(current_slab, depth + 1, ts);
@@ -478,6 +506,14 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                     for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                     PySys_WriteStdout("  |-- %s\n", d->d_name);
                     PyGILState_Release(gstate);
+
+                    /* === NEW FEATURE: export_tree === */
+                    if (ts->config->tree_file) {
+                        for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
+                        fprintf(ts->config->tree_file, "  |-- %s\n", d->d_name);
+                        fflush(ts->config->tree_file);
+                    }
+
                     mutex_unlock(&ts->queue->lock);
                 }
                 identify_and_count(d->d_name, ts);
@@ -507,6 +543,14 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                 PySys_WriteStdout("  |-- [%s]\n", entry->d_name);
                 PyGILState_Release(gstate);
+
+                /* === NEW FEATURE: export_tree === */
+                if (ts->config->tree_file) {
+                    for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
+                    fprintf(ts->config->tree_file, "  |-- [%s]\n", entry->d_name);
+                    fflush(ts->config->tree_file);
+                }
+
                 mutex_unlock(&ts->queue->lock);
                 
                 process_dir_recursive(current_slab, depth + 1, ts);
@@ -524,6 +568,14 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                 PySys_WriteStdout("  |-- %s\n", entry->d_name);
                 PyGILState_Release(gstate);
+
+                /* === NEW FEATURE: export_tree === */
+                if (ts->config->tree_file) {
+                    for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
+                    fprintf(ts->config->tree_file, "  |-- %s\n", entry->d_name);
+                    fflush(ts->config->tree_file);
+                }
+
                 mutex_unlock(&ts->queue->lock);
             }
             identify_and_count(entry->d_name, ts);
@@ -612,6 +664,11 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     PyObject *extensions_list = Py_None;
     PyObject *callback = Py_None;
 
+    /* === NEW FEATURE: export_json, export_excel, export_tree === */
+    const char *export_json = NULL;
+    const char *export_excel = NULL;
+    const char *export_tree = NULL;
+
     double elapsed = 0.0;
 #ifdef _WIN32
     LARGE_INTEGER start_time, end_time, freq;
@@ -621,13 +678,15 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     static char *kwlist[] = {
         "path", "max_depth", "show_tree", "workers",
-        "min_size", "extensions", "callback", "silent", "ignore_junk", NULL
+        "min_size", "extensions", "callback", "silent", "ignore_junk",
+        "export_json", "export_excel", "export_tree", NULL
     };
 
-    /* Formatter: s(path)|i(max_depth)p(show_tree)i(workers)K(min_size)O(exts)O(callback)p(silent)p(ignore_junk) */
-    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|ipiKOOpp", kwlist,
+    /* Formatter string updated to support new optional string parameters */
+    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|ipiKOOppzzz", kwlist,
                                      &input_path, &max_depth, &show_tree, &workers,
-                                     &min_size, &extensions_list, &callback, &silent, &ignore_junk)) {
+                                     &min_size, &extensions_list, &callback, &silent, &ignore_junk,
+                                     &export_json, &export_excel, &export_tree)) {
         return NULL;
     }
 
@@ -679,10 +738,23 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         }
     }
 
+    /* === NEW FEATURE: export_tree === */
+    if (show_tree && export_tree != NULL) {
+        config.tree_file = fopen(export_tree, "w");
+        if (!config.tree_file) {
+            PyErr_SetFromErrnoWithFilename(PyExc_IOError, export_tree);
+            if (config.allowed_exts) free(config.allowed_exts);
+            return NULL;
+        }
+    } else {
+        config.tree_file = NULL;
+    }
+
     WorkQueue *queue = (WorkQueue *)calloc(1, sizeof(WorkQueue));
     if (!queue) {
         PyErr_NoMemory();
         if (config.allowed_exts) free(config.allowed_exts);
+        if (config.tree_file) fclose(config.tree_file);
         return NULL;
     }
     mutex_init(&queue->lock);
@@ -699,7 +771,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     g_atomic_scanned = 0;
 
-    PySys_WriteStdout("\nAnscom Enterprise v1.2 (Threads: %d)\n", workers);
+    PySys_WriteStdout("\nAnscom Enterprise v1.3.0 (Threads: %d)\n", workers);
     PySys_WriteStdout("Target: %s\n", input_path);
 
 #ifdef _WIN32
@@ -748,6 +820,12 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 #else
     pthread_join(progress_thread, NULL);
 #endif
+
+    /* === NEW FEATURE: export_tree cleanup === */
+    if (config.tree_file) {
+        fclose(config.tree_file);
+        config.tree_file = NULL;
+    }
 
 #ifdef _WIN32
     QueryPerformanceCounter(&end_time);
@@ -801,6 +879,135 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     PyDict_SetItemString(res_dict, "extensions", ext_dict);
     Py_DECREF(ext_dict);
 
+    /* === NEW FEATURE: export_json === */
+    if (export_json != NULL) {
+        PyObject *json_mod = PyImport_ImportModule("json");
+        if (json_mod) {
+            PyObject *dumps_func = PyObject_GetAttrString(json_mod, "dumps");
+            if (dumps_func) {
+                PyObject *kwargs = PyDict_New();
+                PyObject *indent_val = PyLong_FromLong(4);
+                PyDict_SetItemString(kwargs, "indent", indent_val);
+                Py_DECREF(indent_val);
+
+                PyObject *args_tuple = PyTuple_Pack(1, res_dict);
+                PyObject *json_str_obj = PyObject_Call(dumps_func, args_tuple, kwargs);
+                
+                if (json_str_obj) {
+                    const char *json_str = PyUnicode_AsUTF8(json_str_obj);
+                    if (json_str) {
+                        FILE *f = fopen(export_json, "w");
+                        if (f) {
+                            fputs(json_str, f);
+                            fclose(f);
+                        } else {
+                            PyErr_SetFromErrnoWithFilename(PyExc_IOError, export_json);
+                        }
+                    }
+                    Py_DECREF(json_str_obj);
+                }
+                
+                Py_DECREF(args_tuple);
+                Py_DECREF(kwargs);
+                Py_DECREF(dumps_func);
+            }
+            Py_DECREF(json_mod);
+        }
+        if (PyErr_Occurred()) {
+            Py_DECREF(res_dict);
+            return NULL;
+        }
+    }
+
+    /* === NEW FEATURE: export_excel === */
+    if (export_excel != NULL) {
+        PyObject *openpyxl = PyImport_ImportModule("openpyxl");
+        if (!openpyxl) {
+            PyErr_Clear();
+            PyErr_SetString(PyExc_ImportError, "openpyxl is required for export_excel but not installed. Please install it via 'pip install openpyxl'.");
+            Py_DECREF(res_dict);
+            return NULL;
+        }
+        
+        PyObject *wb = PyObject_CallMethod(openpyxl, "Workbook", NULL);
+        if (wb) {
+            PyObject *ws_cat = PyObject_GetAttrString(wb, "active");
+            if (ws_cat) {
+                PyObject *title_str = PyUnicode_FromString("Categories");
+                PyObject_SetAttrString(ws_cat, "title", title_str);
+                Py_DECREF(title_str);
+
+                PyObject *row_tuple = Py_BuildValue("(sss)", "Category", "Count", "Percentage");
+                PyObject *res = PyObject_CallMethod(ws_cat, "append", "O", row_tuple);
+                Py_DECREF(row_tuple);
+                Py_XDECREF(res);
+                
+                for (int i = 0; i < CAT_COUNT; i++) {
+                    double pct = final_stats.total_files ? ((double)final_stats.cat_counts[i] / final_stats.total_files * 100.0) : 0.0;
+                    row_tuple = Py_BuildValue("(sKd)", CAT_NAMES[i], final_stats.cat_counts[i], pct);
+                    res = PyObject_CallMethod(ws_cat, "append", "O", row_tuple);
+                    Py_DECREF(row_tuple);
+                    Py_XDECREF(res);
+                }
+                Py_DECREF(ws_cat);
+            }
+
+            PyObject *ws_ext = PyObject_CallMethod(wb, "create_sheet", "s", "Extensions");
+            if (ws_ext) {
+                PyObject *row_tuple = Py_BuildValue("(ss)", "Extension", "Count");
+                Py_DECREF(row_tuple);
+                PyObject *res = PyObject_CallMethod(ws_ext, "append", "O", row_tuple);
+                Py_XDECREF(res);
+                
+                for (int i = 0; i < EXTENSION_COUNT; i++) {
+                    if (final_stats.ext_counts[i] > 0) {
+                        row_tuple = Py_BuildValue("(sK)", EXTENSION_TABLE[i].ext, final_stats.ext_counts[i]);
+                        res = PyObject_CallMethod(ws_ext, "append", "O", row_tuple);
+                        Py_DECREF(row_tuple);
+                        Py_XDECREF(res);
+                    }
+                }
+                Py_DECREF(ws_ext);
+            }
+
+            PyObject *ws_sum = PyObject_CallMethod(wb, "create_sheet", "s", "Summary");
+            if (ws_sum) {
+                PyObject *row_tuple = Py_BuildValue("(ss)", "Metric", "Value");
+                PyObject *res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
+                Py_DECREF(row_tuple);
+                Py_XDECREF(res);
+                
+                row_tuple = Py_BuildValue("(sK)", "Total Files", final_stats.total_files);
+                res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
+                Py_DECREF(row_tuple);
+                Py_XDECREF(res);
+
+                row_tuple = Py_BuildValue("(sK)", "Errors", final_stats.scan_errors);
+                res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
+                Py_DECREF(row_tuple);
+                Py_XDECREF(res);
+
+                row_tuple = Py_BuildValue("(sd)", "Duration (s)", elapsed);
+                res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
+                Py_DECREF(row_tuple);
+                Py_XDECREF(res);
+
+                Py_DECREF(ws_sum);
+            }
+
+            PyObject *res_save = PyObject_CallMethod(wb, "save", "s", export_excel);
+            Py_XDECREF(res_save);
+
+            Py_DECREF(wb);
+        }
+        Py_DECREF(openpyxl);
+        
+        if (PyErr_Occurred()) {
+            Py_DECREF(res_dict);
+            return NULL;
+        }
+    }
+
     return res_dict;
 }
 
@@ -811,14 +1018,15 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 static PyMethodDef AnscomMethods[] = {
     {"scan", (PyCFunction)(void(*)(void))anscom_scan, METH_VARARGS | METH_KEYWORDS,
      "scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, "
-     "extensions=None, callback=None, silent=False, ignore_junk=False) -> dict"},
+     "extensions=None, callback=None, silent=False, ignore_junk=False, "
+     "export_json=None, export_excel=None, export_tree=None) -> dict"},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef anscommodule = {
     PyModuleDef_HEAD_INIT,
     "anscom",
-    "Analyst grade recursive file scanner (v1.2 Tree Structure Edition).",
+    "Analyst grade recursive file scanner (v1.3.0 Tree Structure Edition).",
     -1,
     AnscomMethods
 };
