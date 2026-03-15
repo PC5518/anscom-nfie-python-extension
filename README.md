@@ -1,7 +1,7 @@
 # AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension)
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
-![Current Release](https://img.shields.io/badge/release-1.0.0-blue)
+![Current Release](https://img.shields.io/badge/release-1.3.0-blue)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -35,6 +35,9 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 * **Silent Mode:** Suppress all terminal output — ideal for embedding inside pipelines or CI systems.
 * **Minimum Size Filter:** Skip files below a byte threshold.
 * **Cross-Platform:** Three separate OS-optimized backends: `FindFirstFileW` (Windows), `getdents64` direct syscall (Linux), POSIX `readdir` fallback (macOS/BSD).
+* **JSON Export:** Export full scan results as a formatted `.json` file — zero external dependencies, fully native.
+* **Tree Export:** Save the complete DFS directory tree to a `.txt` file simultaneously alongside stdout.
+* **Excel Export:** Export scan results to a structured `.xlsx` file with Categories, Extensions, and Summary sheets (requires `openpyxl`).
 
 ---
 
@@ -46,8 +49,15 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 pip install anscom
 ```
 
-
 > **Note for Windows users:** Compiling from source requires the "Desktop development with C++" workload from Visual Studio Build Tools.
+
+### Optional: Excel export support
+
+```bash
+pip install anscom[excel]
+```
+
+> ⚠️ **Windows users:** If you encounter a `SystemError` with `export_excel`, use the Python wrapper approach shown below instead.
 
 ### Verify installation
 
@@ -81,6 +91,37 @@ anscom.scan("C:/Users/Admin/Projects", max_depth=20, show_tree=True)
 ### Full Drive Scan
 ```python
 anscom.scan("A:/", max_depth=5, show_tree=False)
+```
+
+### Export to JSON (Native — no dependencies)
+```python
+import anscom
+anscom.scan(".", export_json="results.json")
+```
+
+### Export Tree to File
+```python
+import anscom
+anscom.scan(".", show_tree=True, max_depth=20, export_tree="tree.txt")
+```
+
+### Export to Excel
+```python
+import anscom
+anscom.scan(".", export_excel="results.xlsx")
+```
+
+### All exports in one scan pass
+```python
+import anscom
+anscom.scan(
+    ".",
+    show_tree=True,
+    max_depth=20,
+    export_json="results.json",
+    export_tree="tree.txt",
+    export_excel="results.xlsx"
+)
 ```
 
 ---
@@ -161,7 +202,7 @@ Errors   : 0 (permission denied / inaccessible)
 
 ## API Reference
 
-### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False)`
+### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, export_excel=None)`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -174,6 +215,9 @@ Errors   : 0 (permission denied / inaccessible)
 | `callback` | `callable` | `None` | Called with current scanned file count every ~1 second. GIL is acquired before each call. |
 | `silent` | `bool` | `False` | Suppresses summary report and progress counter. |
 | `ignore_junk` | `bool` | `False` | When `True`, skips directories in the hardcoded exclusion list entirely. |
+| `export_json` | `str` | `None` | If a file path is provided, exports full scan results as a formatted `.json` file. Zero external dependencies — fully native. |
+| `export_tree` | `str` | `None` | If a file path is provided and `show_tree=True`, mirrors the full tree output to a `.txt` file simultaneously alongside stdout. |
+| `export_excel` | `str` | `None` | If a file path is provided, exports scan results to an `.xlsx` file with three sheets: Categories, Extensions, Summary. Requires `openpyxl`. |
 
 **Returns:** `dict`
 
@@ -184,6 +228,131 @@ Errors   : 0 (permission denied / inaccessible)
 | `duration_seconds` | `float` | Wall-clock elapsed time |
 | `categories` | `dict[str, int]` | All 9 categories always present |
 | `extensions` | `dict[str, int]` | Only extensions with count > 0 |
+
+---
+
+## Export Features
+
+### export_json — Native, Zero Dependencies
+
+Export the full scan result as a formatted JSON file. Uses Python's built-in `json` module internally — no `pip install` required.
+
+```python
+import anscom
+
+anscom.scan(".", export_json="results.json")
+```
+
+Example output (`results.json`):
+```json
+{
+    "total_files": 4262,
+    "scan_errors": 0,
+    "duration_seconds": 1.0315,
+    "categories": {
+        "Code/Source": 1941,
+        "Documents": 585,
+        "Images": 369,
+        "Videos": 72,
+        "Audio": 748,
+        "Archives": 11,
+        "Executables": 50,
+        "System/Config": 22,
+        "Other/Unknown": 464
+    },
+    "extensions": {
+        "py": 270,
+        "js": 816,
+        "mp3": 730
+    }
+}
+```
+
+### export_tree — Save DFS Tree to File
+
+Only active when `show_tree=True`. Both stdout and the file receive every line simultaneously — no buffering, no memory accumulation.
+
+```python
+import anscom
+
+anscom.scan(
+    ".",
+    show_tree=True,
+    max_depth=50,
+    export_tree="filesystem_tree.txt"
+)
+```
+
+### export_excel — Structured XLSX Report
+
+Requires `openpyxl` (`pip install anscom[excel]`):
+
+```python
+import anscom
+
+anscom.scan(".", export_excel="results.xlsx")
+```
+
+| Sheet | Columns | Content |
+|---|---|---|
+| `Categories` | Category, Count, Percentage | All 9 categories |
+| `Extensions` | Extension, Count | All non-zero extensions |
+| `Summary` | Metric, Value | Total files, errors, duration |
+
+> ⚠️ **Windows users:** If `export_excel` raises a `SystemError`, use this Python wrapper instead:
+
+```python
+import anscom
+import openpyxl
+
+def scan_to_excel(path, excel_path="results.xlsx", **kwargs):
+    kwargs.pop("export_excel", None)
+    result = anscom.scan(path, **kwargs)
+
+    wb = openpyxl.Workbook()
+
+    ws1 = wb.active
+    ws1.title = "Categories"
+    ws1.append(["Category", "Count", "Percentage"])
+    for cat, count in result["categories"].items():
+        pct = round(count / result["total_files"] * 100, 2) if result["total_files"] else 0
+        ws1.append([cat, count, pct])
+
+    ws2 = wb.create_sheet("Extensions")
+    ws2.append(["Extension", "Count"])
+    for ext, count in result["extensions"].items():
+        ws2.append([ext, count])
+
+    ws3 = wb.create_sheet("Summary")
+    ws3.append(["Metric", "Value"])
+    ws3.append(["Total Files", result["total_files"]])
+    ws3.append(["Errors", result["scan_errors"]])
+    ws3.append(["Duration (s)", round(result["duration_seconds"], 4)])
+
+    wb.save(excel_path)
+    return result
+
+scan_to_excel(".", excel_path="results.xlsx")
+```
+
+### All exports in one pass
+
+```python
+import anscom
+
+anscom.scan(
+    "/mnt/enterprise-storage",
+    max_depth=20,
+    show_tree=True,
+    silent=True,
+    ignore_junk=True,
+    export_json="audit.json",
+    export_tree="tree.txt",
+    export_excel="report.xlsx"
+)
+```
+
+One scan pass. Three output files. No re-scanning.
 
 ---
 
@@ -309,14 +478,16 @@ print(f"Scan time:    {result['duration_seconds']:.3f}s")
 ### Pre-Migration Filesystem Audit
 
 ```python
-import anscom, json, datetime
+import anscom
 
-result = anscom.scan("/legacy-server/data", max_depth=30, silent=True)
-result["audit_timestamp"] = str(datetime.datetime.utcnow())
-result["hostname"] = "legacy-srv-04"
+result = anscom.scan(
+    "/legacy-server/data",
+    max_depth=30,
+    silent=True,
+    export_json="pre_migration_audit.json"
+)
 
-with open("pre_migration_audit.json", "w") as f:
-    json.dump(result, f, indent=2)
+print(f"Audit complete: {result['total_files']:,} files recorded.")
 ```
 
 ### CI/CD Pipeline File Validation
@@ -335,32 +506,19 @@ print("File composition check passed.")
 
 ### Full Filesystem Tree Capture (Terabyte-Scale)
 
-Anscom imposes no internal limit on the volume of filesystem it will traverse. Memory usage is bounded by the work queue capacity (131,072 directory slots) and the per-thread path slabs — neither grows with the total number of files on disk. Scanning 50 million files does not consume meaningfully more memory than scanning 50,000.
+Anscom imposes no internal limit on the volume of filesystem it will traverse. Memory usage is bounded by the work queue capacity (131,072 directory slots) and the per-thread path slabs — neither grows with the total number of files on disk.
 
 ```python
-import anscom, sys
-
-class FileWriter:
-    def __init__(self, path):
-        self.f = open(path, "w", encoding="utf-8", buffering=1024 * 1024)
-    def write(self, s):
-        self.f.write(s)
-    def flush(self):
-        self.f.flush()
-
-writer = FileWriter("filesystem_tree.txt")
-sys.stdout = writer
+import anscom
 
 anscom.scan(
     "/mnt/large-volume",
     max_depth=64,
     show_tree=True,
     silent=True,
-    ignore_junk=True
+    ignore_junk=True,
+    export_tree="filesystem_tree.txt"
 )
-
-sys.stdout = sys.__stdout__
-writer.f.close()
 ```
 
 ---
@@ -369,10 +527,11 @@ writer.f.close()
 
 | Version | Date | Notes |
 |---|---|---|
-| **1.0.0** | 13 March 2026 | **Major release.** Terabyte-scale filesystem scanning — previous versions were limited in the volume they could reliably traverse. This release introduces a multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks during scan, slab path allocator (zero heap allocation during traversal), extension whitelisting, silent mode, min_size filter, and live callback interface. Memory usage is now bounded regardless of filesystem size. |
-| 0.6.0 | Jan 15, 2026 | added features like data tree and many more |
+| **1.3.0** | 15 March 2026 | **Export release.** Added `export_json` (native, zero dependencies), `export_tree` (DFS tree to `.txt`), and `export_excel` (structured `.xlsx` with openpyxl). MSVC Windows compiler compatibility fix for `uint64_t` / `stdint.h`. |
+| **1.0.0** | 13 March 2026 | **Major release.** Terabyte-scale filesystem scanning. Multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks, slab path allocator, extension whitelisting, silent mode, min_size filter, and live callback interface. |
+| 0.6.0 | Jan 15, 2026 | Added features like data tree and many more |
 | 0.5.0 | Jan 15, 2026 | — |
-| 0.4.0 | Jan 15, 2026 | Release of the basic version with the concept of anscom|
+| 0.4.0 | Jan 15, 2026 | Release of the basic version with the concept of anscom |
 
 ---
 
@@ -381,13 +540,13 @@ writer.f.close()
 Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
 
 ---
-## anscom offcial web
+
+## anscom official web
 
 https://anscomqs.github.io/anscom/
 
 ---
+
 ## License
 
 MIT License
-
-
