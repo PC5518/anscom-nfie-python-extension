@@ -107,7 +107,7 @@ anscom.scan(".", show_tree=True, max_depth=20, export_tree="tree.txt")
 ```
 
 ### Export to Excel
-<img width="128" height="131" alt="image" src="https://github.com/user-attachments/assets/aa68f237-deff-48ad-a7bf-679d1ff57b71" />
+<img width="12" height="13" alt="image" src="https://github.com/user-attachments/assets/aa68f237-deff-48ad-a7bf-679d1ff57b71" />
 
 ```python
 import anscom
@@ -237,6 +237,8 @@ Errors   : 0 (permission denied / inaccessible)
 ## Export Features
 
 ### export_json — Native, Zero Dependencies
+
+<img width="12" height="12" alt="image" src="https://github.com/user-attachments/assets/4bc11c50-37f5-4a31-883c-9d1e2c222b41" />
 
 Export the full scan result as a formatted JSON file. Uses Python's built-in `json` module internally — no `pip install` required.
 
