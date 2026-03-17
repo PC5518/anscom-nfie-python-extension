@@ -545,7 +545,7 @@ anscom.scan(
 Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
 
 ---
-
+## Totally open to accept suggestion.
 ## anscom official web
 
 https://anscomqs.github.io/anscom/
