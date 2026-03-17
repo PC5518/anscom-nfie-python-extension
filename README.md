@@ -205,7 +205,7 @@ Errors   : 0 (permission denied / inaccessible)
 
 ## API Reference
 
-### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, export_excel=None)`
+### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None,  callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, export_excel=None)`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
