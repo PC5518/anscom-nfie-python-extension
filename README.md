@@ -107,6 +107,8 @@ anscom.scan(".", show_tree=True, max_depth=20, export_tree="tree.txt")
 ```
 
 ### Export to Excel
+<img width="128" height="131" alt="image" src="https://github.com/user-attachments/assets/aa68f237-deff-48ad-a7bf-679d1ff57b71" />
+
 ```python
 import anscom
 anscom.scan(".", export_excel="results.xlsx")
