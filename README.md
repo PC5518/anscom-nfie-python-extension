@@ -1,4 +1,4 @@
-<img width="877" height="563" alt="image" src="https://github.com/user-attachments/assets/ee00ebb4-0745-4c48-bb1c-4d92beececed" /># AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension)
+# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension)
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
 ![Current Release](https://img.shields.io/badge/release-1.3.0-blue)
