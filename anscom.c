@@ -7,7 +7,7 @@
  * Compilation: python setup.py build_ext --inplace
  * update fix_2/21/2026: includes logic to ignore junk or corrupted files  (new version available on PyPl)
  * update: new  version released:-> 13 March 2026 : added features which can analyze directories at terabyte scale under seconds without any lag! via n.log(n). making the most powerful version than ever before !
- * update v1.3.0: added export_json, export_excel, and export_tree features
+ * update v1.3.0: added export_json, export_excel, and export_tree features (note: the features related to excel are dependent upon openpyxl)
  */
 
 
