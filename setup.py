@@ -1,7 +1,7 @@
 import sys
 from setuptools import setup, Extension
-
-# Read the long description from README
+# in comparison to v1.3.0 i have removed the excel dependecnies on openpyxl (reason: it was crashing a lot)
+#read the long description from README
 try:
     with open("README.md", "r", encoding="utf-8") as fh:
         long_description = fh.read()
