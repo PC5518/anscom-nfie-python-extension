@@ -1,6 +1,7 @@
 import sys
 from setuptools import setup, Extension
 # in comparison to v1.3.0 i have removed the excel dependecnies on openpyxl (reason: it was crashing a lot)
+# now the python package is totally dependent upon csv output
 #read the long description from README
 try:
     with open("README.md", "r", encoding="utf-8") as fh:
