@@ -1,7 +1,7 @@
 # AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension)
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
-![Current Release](https://img.shields.io/badge/release-1.3.0-blue)
+![Current Release](https://img.shields.io/badge/release-1.5.0-blue)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -39,7 +39,11 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 * **Cross-Platform:** Three separate OS-optimized backends: `FindFirstFileW` (Windows), `getdents64` direct syscall (Linux), POSIX `readdir` fallback (macOS/BSD).
 * **JSON Export:** Export full scan results as a formatted `.json` file — zero external dependencies, fully native.
 * **Tree Export:** Save the complete DFS directory tree to a `.txt` file simultaneously alongside stdout.
-* **Excel Export:** Export scan results to a structured `.xlsx` file with Categories, Extensions, and Summary sheets (requires `openpyxl`).
+* **CSV Export** *(new in v1.5.0)*: Per-file inventory as a UTF-8 CSV — `path`, `size`, `ext`, `category`, `mtime`. Zero dependencies, RFC 4180-compliant quoting.
+* **Per-File Return** *(new in v1.5.0)*: Opt-in `return_files=True` adds a complete file list to the returned dict for downstream Python processing.
+* **Top-N Largest Files** *(new in v1.5.0)*: `largest_n=N` reports the largest files via per-thread min-heap — O(log N) per file, no extra pass.
+* **Duplicate Detection** *(new in v1.5.0)*: Two-phase size-bucket + CRC32 fingerprinting — zero I/O for unique-size files.
+* **Regex Path Filter** *(new in v1.5.0)*: `regex_filter` restricts the scan to paths matching a pattern. POSIX `regexec` on Linux/macOS for zero GIL overhead.
 
 ---
 
@@ -52,14 +56,6 @@ pip install anscom
 ```
 
 > **Note for Windows users:** Compiling from source requires the "Desktop development with C++" workload from Visual Studio Build Tools.
-
-### Optional: Excel export support
-
-```bash
-pip install anscom[excel]
-```
-
-> ⚠️ **Windows users:** If you encounter a `SystemError` with `export_excel`, use the Python wrapper approach shown below instead.
 
 ### Verify installation
 
@@ -107,12 +103,46 @@ import anscom
 anscom.scan(".", show_tree=True, max_depth=20, export_tree="tree.txt")
 ```
 
-### Export to Excel
-<img width="12" height="13" alt="image" src="https://github.com/user-attachments/assets/aa68f237-deff-48ad-a7bf-679d1ff57b71" />
-
+### Export to CSV *(new in v1.5.0)*
 ```python
 import anscom
-anscom.scan(".", export_excel="results.xlsx")
+anscom.scan(".", export_csv="inventory.csv")
+```
+
+Per-file UTF-8 CSV with columns `path,size,ext,category,mtime`. RFC 4180-compliant quoting. Zero external dependencies.
+
+### Return Per-File List *(new in v1.5.0)*
+```python
+import anscom
+result = anscom.scan(".", return_files=True, silent=True)
+for f in result["files"]:
+    print(f["path"], f["size"], f["category"])
+```
+
+### Top-N Largest Files *(new in v1.5.0)*
+```python
+import anscom
+result = anscom.scan("/mnt/storage", largest_n=20, silent=True)
+for f in result["largest_files"]:
+    print(f"{f['size']/1024**3:.2f} GB  {f['path']}")
+```
+
+### Find Duplicates *(new in v1.5.0)*
+```python
+import anscom
+result = anscom.scan("/media-library", find_duplicates=True, silent=True)
+print(f"Duplicate groups: {len(result['duplicates'])}")
+for group in result["duplicates"]:
+    print(f"\nGroup ({len(group)} files):")
+    for path in group:
+        print(f"  {path}")
+```
+
+### Regex Path Filter *(new in v1.5.0)*
+```python
+import anscom
+result = anscom.scan("/codebase", regex_filter=r"/tests/.*\.py$", silent=True)
+print(f"Matched test files: {result['total_files']}")
 ```
 
 ### All exports in one scan pass
@@ -124,7 +154,10 @@ anscom.scan(
     max_depth=20,
     export_json="results.json",
     export_tree="tree.txt",
-    export_excel="results.xlsx"
+    export_csv="inventory.csv",
+    return_files=True,
+    largest_n=20,
+    find_duplicates=True,
 )
 ```
 
@@ -206,7 +239,7 @@ Errors   : 0 (permission denied / inaccessible)
 
 ## API Reference
 
-### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None,  callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, export_excel=None)`
+### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, return_files=False, export_csv=None, largest_n=0, find_duplicates=False, regex_filter=None)`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -221,17 +254,24 @@ Errors   : 0 (permission denied / inaccessible)
 | `ignore_junk` | `bool` | `False` | When `True`, skips directories in the hardcoded exclusion list entirely. |
 | `export_json` | `str` | `None` | If a file path is provided, exports full scan results as a formatted `.json` file. Zero external dependencies — fully native. |
 | `export_tree` | `str` | `None` | If a file path is provided and `show_tree=True`, mirrors the full tree output to a `.txt` file simultaneously alongside stdout. |
-| `export_excel` | `str` | `None` | If a file path is provided, exports scan results to an `.xlsx` file with three sheets: Categories, Extensions, Summary. Requires `openpyxl`. |
+| `return_files` *(new in v1.5.0)* | `bool` | `False` | When `True`, the result dict gains a `"files"` key containing a list of dicts (`path`, `size`, `ext`, `category`, `mtime`) — one per file. |
+| `export_csv` *(new in v1.5.0)* | `str` | `None` | If a file path is provided, writes a UTF-8 CSV with columns `path,size,ext,category,mtime`. RFC 4180-compliant quoting. Zero dependencies. |
+| `largest_n` *(new in v1.5.0)* | `int` | `0` | If > 0, the result dict gains a `"largest_files"` key with the top-N largest files by size. Implemented via per-thread min-heap — O(log N) per file, no extra pass. |
+| `find_duplicates` *(new in v1.5.0)* | `bool` | `False` | If `True`, the result dict gains a `"duplicates"` key: a list of groups, each a list of paths sharing identical content. Two-phase: size bucket → CRC32 of first 4KB. |
+| `regex_filter` *(new in v1.5.0)* | `str` | `None` | A regex pattern. Only files whose full path matches are counted, categorized, and tracked. Uses POSIX `regexec` on Linux/macOS (no GIL); Python `re` fallback on Windows. |
 
 **Returns:** `dict`
 
-| Key | Type | Description |
-|---|---|---|
-| `total_files` | `int` | Files that passed all filters and were categorized |
-| `scan_errors` | `int` | Paths that could not be opened |
-| `duration_seconds` | `float` | Wall-clock elapsed time |
-| `categories` | `dict[str, int]` | All 9 categories always present |
-| `extensions` | `dict[str, int]` | Only extensions with count > 0 |
+| Key | Type | Always? | Description |
+|---|---|---|---|
+| `total_files` | `int` | ✓ | Files that passed all filters and were categorized |
+| `scan_errors` | `int` | ✓ | Paths that could not be opened |
+| `duration_seconds` | `float` | ✓ | Wall-clock elapsed time |
+| `categories` | `dict[str, int]` | ✓ | All 9 categories always present |
+| `extensions` | `dict[str, int]` | ✓ | Only extensions with count > 0 |
+| `files` | `list[dict]` | `return_files=True` | Per-file records: `path`, `size`, `ext`, `category`, `mtime` |
+| `largest_files` | `list[dict]` | `largest_n > 0` | Top-N files by size: `path`, `size` |
+| `duplicates` | `list[list[str]]` | `find_duplicates=True` | Groups of paths sharing identical content (size + CRC32) |
 
 ---
 
@@ -239,9 +279,7 @@ Errors   : 0 (permission denied / inaccessible)
 
 ### export_json — Native, Zero Dependencies
 
-<img width="12" height="12" alt="image" src="https://github.com/user-attachments/assets/4bc11c50-37f5-4a31-883c-9d1e2c222b41" />
-
-Export the full scan result as a formatted JSON file. Uses Python's built-in `json` module internally — no `pip install` required.
+Export the full scan result as a formatted JSON file. Uses Python's built-in `json` module internally — no `pip install` required. The JSON file contains **all** keys present in the returned dict, including optional v1.5.0 keys (`files`, `largest_files`, `duplicates`) when those features are enabled in the same call.
 
 ```python
 import anscom
@@ -289,56 +327,31 @@ anscom.scan(
 )
 ```
 
-### export_excel — Structured XLSX Report
+### export_csv — Per-File Inventory *(new in v1.5.0)*
 
-Requires `openpyxl` (`pip install anscom[excel]`):
+Writes a per-file UTF-8 CSV with columns `path,size,ext,category,mtime`. RFC 4180-compliant quoting (paths with embedded quotes are correctly escaped). Zero external dependencies.
 
 ```python
 import anscom
-
-anscom.scan(".", export_excel="results.xlsx")
+anscom.scan(".", export_csv="inventory.csv")
 ```
 
-| Sheet | Columns | Content |
-|---|---|---|
-| `Categories` | Category, Count, Percentage | All 9 categories |
-| `Extensions` | Extension, Count | All non-zero extensions |
-| `Summary` | Metric, Value | Total files, errors, duration |
-
-> ⚠️ **Windows users:** If `export_excel` raises a `SystemError`, use this Python wrapper instead:
+Loading downstream:
 
 ```python
-import anscom
-import openpyxl
+# With pandas
+import pandas as pd
+df = pd.read_csv("inventory.csv")
+print(df.groupby("category")["size"].sum().sort_values(ascending=False))
 
-def scan_to_excel(path, excel_path="results.xlsx", **kwargs):
-    kwargs.pop("export_excel", None)
-    result = anscom.scan(path, **kwargs)
+# Convert to Excel via pandas
+df.to_excel("report.xlsx", index=False)
 
-    wb = openpyxl.Workbook()
-
-    ws1 = wb.active
-    ws1.title = "Categories"
-    ws1.append(["Category", "Count", "Percentage"])
-    for cat, count in result["categories"].items():
-        pct = round(count / result["total_files"] * 100, 2) if result["total_files"] else 0
-        ws1.append([cat, count, pct])
-
-    ws2 = wb.create_sheet("Extensions")
-    ws2.append(["Extension", "Count"])
-    for ext, count in result["extensions"].items():
-        ws2.append([ext, count])
-
-    ws3 = wb.create_sheet("Summary")
-    ws3.append(["Metric", "Value"])
-    ws3.append(["Total Files", result["total_files"]])
-    ws3.append(["Errors", result["scan_errors"]])
-    ws3.append(["Duration (s)", round(result["duration_seconds"], 4)])
-
-    wb.save(excel_path)
-    return result
-
-scan_to_excel(".", excel_path="results.xlsx")
+# Standard library only
+import csv
+with open("inventory.csv", newline="", encoding="utf-8") as f:
+    for row in csv.DictReader(f):
+        print(row["path"], row["size"])
 ```
 
 ### All exports in one pass
@@ -354,11 +367,117 @@ anscom.scan(
     ignore_junk=True,
     export_json="audit.json",
     export_tree="tree.txt",
-    export_excel="report.xlsx"
+    export_csv="inventory.csv",
+    return_files=True,
+    largest_n=50,
+    find_duplicates=True,
 )
 ```
 
-One scan pass. Three output files. No re-scanning.
+One scan pass. Multiple output files. Full in-memory results. No re-scanning.
+
+---
+
+## v1.5.0 Feature Deep Dive
+
+### `return_files` — Per-File List in the Result Dict
+
+When `True`, the returned dict gains a `"files"` key — a Python list of dicts, one per scanned file.
+
+| Field | Type | Description |
+|---|---|---|
+| `path` | `str` | Full absolute path to the file |
+| `size` | `int` | File size in bytes |
+| `ext` | `str` | Lowercase extension (no dot), empty if unrecognized |
+| `category` | `str` | One of the 9 category names |
+| `mtime` | `int` | Unix timestamp of last modification |
+
+```python
+result = anscom.scan("/project", return_files=True, silent=True)
+
+# Filter in Python
+large_code = [
+    f for f in result["files"]
+    if f["category"] == "Code/Source" and f["size"] > 50_000
+]
+
+# Sort by size descending
+by_size = sorted(result["files"], key=lambda f: f["size"], reverse=True)
+print("Largest file:", by_size[0]["path"])
+```
+
+`len(result["files"]) == result["total_files"]` is always true.
+
+### `largest_n` — Top-N Largest Files
+
+Per-thread min-heap of capacity N. O(log N) cost per file, no extra pass, no full sort. Heaps are merged after all threads join.
+
+```python
+result = anscom.scan("/mnt/storage", largest_n=20, silent=True)
+
+for f in result["largest_files"]:
+    gb = f["size"] / (1024 ** 3)
+    print(f"{gb:8.2f} GB  {f['path']}")
+```
+
+The printed report also gains a section:
+
+```
+=== TOP 20 LARGEST FILES ===========================
+  1073741824 bytes : /data/backup/archive.tar.gz
+   536870912 bytes : /data/media/4k_reel.mkv
+...
+===================================================
+```
+
+### `find_duplicates` — Two-Phase Duplicate Detection
+
+1. **Size bucketing** — files sorted by size. Files with a unique size are skipped — zero I/O.
+2. **CRC32 fingerprinting** — for each same-size group ≥2 files, the first 4096 bytes of each are read and CRC32 is computed. Matching CRC32s are reported as duplicates.
+
+```python
+result = anscom.scan("/media-library", find_duplicates=True, silent=True)
+print(f"Duplicate groups: {len(result['duplicates'])}")
+
+for group in result["duplicates"]:
+    for path in group:
+        print(f"  {path}")
+```
+
+Combine with `return_files=True` to compute reclaimable space:
+
+```python
+result = anscom.scan(
+    "/mnt/archive",
+    find_duplicates=True,
+    return_files=True,
+    silent=True,
+)
+
+size_map = {f["path"]: f["size"] for f in result["files"]}
+wasted = sum(
+    sum(size_map.get(p, 0) for p in group[1:])
+    for group in result["duplicates"]
+)
+print(f"Reclaimable: {wasted / (1024**3):.2f} GB")
+```
+
+### `regex_filter` — Path Pattern Filter
+
+A regex pattern. When set, **only** files whose full absolute path matches are counted, categorized, and tracked.
+
+* **Linux / macOS:** Compiled with POSIX `regcomp(REG_EXTENDED | REG_NOSUB)`, matched with `regexec` — **no GIL acquisition**, runs fully in C inside the worker threads.
+* **Windows:** Falls back to Python's `re` module (GIL acquired per file). For large Windows scans, prefer the `extensions` whitelist for zero-GIL filtering.
+
+The pattern is also compiled with Python's `re.compile` before the scan. Invalid patterns raise `ValueError` immediately — no scan is started.
+
+```python
+# Only test files
+result = anscom.scan("/repo", regex_filter=r"test_.*\.py$", silent=True)
+
+# Only files inside src/ directories
+result = anscom.scan("/project", regex_filter=r"/src/", silent=True)
+```
 
 ---
 
@@ -373,6 +492,8 @@ One scan pass. Three output files. No re-scanning.
 After scanning, AnsCom prints:
 - Summary Report
 - Detailed Extension Breakdown
+- Top-N Largest Files *(when `largest_n > 0`)*
+- Duplicates Summary *(when `find_duplicates=True`)*
 
 ---
 
@@ -384,6 +505,9 @@ After scanning, AnsCom prints:
 - Slab path allocator — one `malloc` per thread before scan, zero allocations during traversal
 - Hardware atomic progress counter (`__sync_fetch_and_add` / `InterlockedExchangeAdd64`)
 - Hybrid parallel/inline dispatch — queue at shallow depths, inline recursion at depth
+- Per-thread min-heap for `largest_n` — O(log N) per file, lock-free
+- Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans
+- POSIX `regexec` for `regex_filter` on Linux/macOS — fully GIL-free regex matching inside worker threads
 
 ---
 
@@ -490,7 +614,9 @@ result = anscom.scan(
     "/legacy-server/data",
     max_depth=30,
     silent=True,
-    export_json="pre_migration_audit.json"
+    return_files=True,
+    export_json="pre_migration_audit.json",
+    export_csv="pre_migration_inventory.csv",
 )
 
 print(f"Audit complete: {result['total_files']:,} files recorded.")
@@ -508,6 +634,29 @@ if result["categories"]["Executables"] > 0:
     sys.exit(1)
 
 print("File composition check passed.")
+```
+
+### Storage Reclamation via Duplicate Detection *(new in v1.5.0)*
+
+```python
+import anscom
+
+result = anscom.scan(
+    "/mnt/media-archive",
+    find_duplicates=True,
+    return_files=True,
+    workers=16,
+    silent=True,
+)
+
+size_map = {f["path"]: f["size"] for f in result["files"]}
+wasted = sum(
+    sum(size_map.get(p, 0) for p in group[1:])
+    for group in result["duplicates"]
+)
+
+print(f"Duplicate groups : {len(result['duplicates'])}")
+print(f"Reclaimable      : {wasted / (1024**3):.2f} GB")
 ```
 
 ### Full Filesystem Tree Capture (Terabyte-Scale)
@@ -533,6 +682,7 @@ anscom.scan(
 
 | Version | Date | Notes |
 |---|---|---|
+| **1.5.0** | 09 April 2026 | **Major feature release.** Added `return_files` (per-file list in result dict), `export_csv` (UTF-8 CSV inventory, RFC 4180-compliant, zero deps), `largest_n` (top-N largest files via per-thread min-heap, O(log N) per file), `find_duplicates` (two-phase size + CRC32 detection, zero I/O for unique-size files), `regex_filter` (POSIX `regexec` on Linux/macOS for GIL-free path filtering, Python `re` fallback on Windows). Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans. All new features are strictly opt-in: default `anscom.scan(".")` runs the identical hot path as v1.3.0. Removed `export_excel` (was crashing on Windows due to `openpyxl` `Workbook.read_only` exception); use `export_csv` + `pandas.to_excel()` instead. |
 | **1.3.0** | 15 March 2026 | **Export release.** Added `export_json` (native, zero dependencies), `export_tree` (DFS tree to `.txt`), and `export_excel` (structured `.xlsx` with openpyxl). MSVC Windows compiler compatibility fix for `uint64_t` / `stdint.h`. |
 | **1.0.0** | 13 March 2026 | **Major release.** Terabyte-scale filesystem scanning. Multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks, slab path allocator, extension whitelisting, silent mode, min_size filter, and live callback interface. |
 | 0.6.0 | Jan 15, 2026 | Added features like data tree and many more |
