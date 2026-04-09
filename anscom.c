@@ -1,13 +1,18 @@
+
 /*
  * anscom.c
- *
- * Version: v1.3.0 (Tree Structure & DFS Fix) flagship version
+ * "aditya narayan singh"
+ * Version: v1.4.0 (Tree Structure & DFS Fix) flagship version
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
  * update fix_2/21/2026: includes logic to ignore junk or corrupted files  (new version available on PyPl)
- * update: new  version released:-> 13 March 2026 : added features which can analyze directories at terabyte scale under seconds without any lag! via n.log(n). making the most powerful version than ever before !
- * update v1.3.0: added export_json, export_excel, and export_tree features (note: the features related to excel are dependent upon openpyxl)
+ * update: new  version released:-> 13 March 2026 : added features which can analyze directories at terabyte scale under seconds without any lag! via n.
+ * v1.4.0: Removed export_excel (was crashing with openpyxl Workbook.read_only
+ *         exception). CSV export is sufficient and works perfectly.
+ *         All other features preserved: tree, JSON, CSV, duplicates,
+ *         largest_n, return_files, regex_filter, ignore_junk, callbacks.
+
  */
 
 
@@ -20,7 +25,9 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 
-/* Cross-platform & OS-specific headers */
+/* -------------------------------------------------------------------------
+   Cross-platform & OS-specific headers
+   ------------------------------------------------------------------------- */
 #ifdef _WIN32
     #include <windows.h>
     #define PATH_SEP '\\'
@@ -43,6 +50,7 @@
     #include <unistd.h>
     #include <fcntl.h>
     #include <time.h>
+    #include <regex.h>
     #define PATH_SEP '/'
     #if defined(__linux__) && defined(__NR_getdents64)
         #include <sys/syscall.h>
@@ -147,12 +155,89 @@ static const ExtDef EXTENSION_TABLE[] = {
     {"woff", CAT_SYSTEM}, {"woff2", CAT_SYSTEM}, {"wpd", CAT_DOCUMENT}, {"wps", CAT_DOCUMENT},
     {"wsf", CAT_CODE}, {"xcodeproj", CAT_CODE}, {"xls", CAT_DOCUMENT}, {"xlsm", CAT_DOCUMENT},
     {"xlsx", CAT_DOCUMENT}, {"xml", CAT_CODE}, {"yaml", CAT_CODE}, {"yml", CAT_CODE},
-    {"zip", CAT_ARCHIVE}
+    {"zip", CAT_ARCHIVE},
 };
 static const int EXTENSION_COUNT = sizeof(EXTENSION_TABLE) / sizeof(ExtDef);
 
 #define HASH_SIZE 512
 static int EXT_HASH_TABLE[HASH_SIZE];
+
+/* -------------------------------------------------------------------------
+   CRC32 and Duplicate Data Structures
+   ------------------------------------------------------------------------- */
+
+static const uint32_t crc32_tab[] = {
+    0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
+    0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
+    0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
+    0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5,
+    0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172, 0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b,
+    0x35b5a8fa, 0x42b2986c, 0xdbbbc9d6, 0xacbcf940, 0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
+    0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423, 0xcfba9599, 0xb8bda50f,
+    0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924, 0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d,
+    0x76dc4190, 0x01db7106, 0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
+    0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d, 0x91646c97, 0xe6635c01,
+    0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e, 0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457,
+    0x65b0d9c6, 0x12b7e950, 0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
+    0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2, 0x4adfa541, 0x3dd895d7, 0xa4d1c46d, 0xd3d6f4fb,
+    0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0, 0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9,
+    0x5005713c, 0x270241aa, 0xbe0b1010, 0xc90c2086, 0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
+    0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81, 0xb7bd5c3b, 0xc0ba6cad,
+    0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a, 0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683,
+    0xe3630b12, 0x94643b84, 0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
+    0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb, 0x196c3671, 0x6e6b06e7,
+    0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc, 0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5,
+    0xd6d6a3e8, 0xa1d1937e, 0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
+    0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60, 0xdf60efc3, 0xa867df55, 0x316e8eef, 0x4669be79,
+    0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236, 0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f,
+    0xc5ba3bbe, 0xb2bd0b28, 0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
+    0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f, 0x72076785, 0x05005713,
+    0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38, 0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21,
+    0x86d3d2d4, 0xf1d4e242, 0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
+    0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69, 0x616bffd3, 0x166ccf45,
+    0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db,
+    0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
+    0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf,
+    0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
+};
+
+static uint32_t compute_crc32(const void *buf, size_t size) {
+    const uint8_t *p = buf;
+    uint32_t crc = ~0U;
+    while (size--) crc = crc32_tab[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
+    return crc ^ ~0U;
+}
+
+static uint32_t get_file_crc(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    char buf[4096];
+    size_t n = fread(buf, 1, sizeof(buf), f);
+    fclose(f);
+    if (n == 0) return 0;
+    return compute_crc32(buf, n);
+}
+
+typedef struct {
+    char *path;
+    uint64_t size;
+    char ext[32];
+    FileCategory category;
+    uint64_t mtime;
+} FileInfo;
+
+#define FILEARRAY_INIT_CAP 65536
+typedef struct {
+    FileInfo *data;
+    size_t size;
+    size_t capacity;
+} FileArray;
+
+typedef struct {
+    FileInfo *data;
+    int size;
+    int capacity;
+} TopKHeap;
 
 /* -------------------------------------------------------------------------
    Thread-Safe Data Structures
@@ -163,6 +248,11 @@ typedef struct {
     uint64_t scan_errors;
     uint64_t cat_counts[CAT_COUNT];
     uint64_t ext_counts[sizeof(EXTENSION_TABLE) / sizeof(ExtDef)];
+    int largest_n;
+    FileInfo *top_files;
+    int top_files_count;
+    int find_duplicates_enabled;
+    uint64_t duplicates_groups;
 } ScanStats;
 
 typedef struct {
@@ -173,8 +263,16 @@ typedef struct {
     PyObject *callback;
     uint8_t *allowed_exts;
     int ignore_junk;
-    /* === NEW FEATURE: export_tree === */
     FILE *tree_file;
+    int return_files;
+    const char *export_csv;
+    int largest_n;
+    int find_duplicates;
+    PyObject *regex_compiled;
+#ifndef _WIN32
+    regex_t regex_compiled_posix;
+    int has_posix_regex;
+#endif
 } ScanConfig;
 
 static volatile uint64_t g_atomic_scanned = 0;
@@ -199,6 +297,11 @@ typedef struct {
     ScanConfig *config;
     WorkQueue *queue;
     char *path_slab;
+    char current_file_path[PATH_MAX];
+    uint64_t current_file_size;
+    uint64_t current_file_mtime;
+    FileArray files;
+    TopKHeap top_files;
 } ThreadState;
 
 /* -------------------------------------------------------------------------
@@ -229,44 +332,150 @@ static int is_ignored(const char *dirname) {
     return 0;
 }
 
+static void heap_push(TopKHeap *h, FileInfo fi, int max_n) {
+    if (h->size < max_n) {
+        FileInfo new_fi = fi;
+        new_fi.path = strdup(fi.path);
+        int i = h->size++;
+        while (i > 0) {
+            int p = (i - 1) / 2;
+            if (h->data[p].size <= new_fi.size) break;
+            h->data[i] = h->data[p];
+            i = p;
+        }
+        h->data[i] = new_fi;
+    } else if (fi.size > h->data[0].size) {
+        free(h->data[0].path);
+        FileInfo new_fi = fi;
+        new_fi.path = strdup(fi.path);
+        int i = 0;
+        while (i * 2 + 1 < h->size) {
+            int left = i * 2 + 1;
+            int right = i * 2 + 2;
+            int smallest = left;
+            if (right < h->size && h->data[right].size < h->data[left].size) {
+                smallest = right;
+            }
+            if (new_fi.size <= h->data[smallest].size) break;
+            h->data[i] = h->data[smallest];
+            i = smallest;
+        }
+        h->data[i] = new_fi;
+    }
+}
+
 static void identify_and_count(const char *filename, ThreadState *ts) {
+    /* Regex filter — uses native POSIX regex on Linux for max speed */
+    if (ts->config->regex_compiled) {
+#ifndef _WIN32
+        if (ts->config->has_posix_regex) {
+            if (regexec(&ts->config->regex_compiled_posix, ts->current_file_path, 0, NULL, 0) != 0) {
+                return;
+            }
+        } else {
+            PyGILState_STATE gstate = PyGILState_Ensure();
+            PyObject *res = PyObject_CallMethod(ts->config->regex_compiled, "search", "s", ts->current_file_path);
+            if (!res || res == Py_None) {
+                if (!res) PyErr_Clear();
+                Py_XDECREF(res);
+                PyGILState_Release(gstate);
+                return;
+            }
+            Py_DECREF(res);
+            PyGILState_Release(gstate);
+        }
+#else
+        PyGILState_STATE gstate = PyGILState_Ensure();
+        PyObject *res = PyObject_CallMethod(ts->config->regex_compiled, "search", "s", ts->current_file_path);
+        if (!res || res == Py_None) {
+            if (!res) PyErr_Clear();
+            Py_XDECREF(res);
+            PyGILState_Release(gstate);
+            return;
+        }
+        Py_DECREF(res);
+        PyGILState_Release(gstate);
+#endif
+    }
+
+    FileCategory found_cat = CAT_UNKNOWN;
+    char found_ext[32] = "";
+
     const char *dot = strrchr(filename, '.');
     if (!dot || dot == filename) {
         ts->stats.cat_counts[CAT_UNKNOWN]++;
         ts->stats.total_files++;
         ATOMIC_ADD(&g_atomic_scanned, 1);
-        return;
-    }
-    char ext_lower[32];
-    const char *ext_ptr = dot + 1;
-    size_t i = 0;
-    while (ext_ptr[i] && i < 31) {
-        ext_lower[i] = (char)tolower((unsigned char)ext_ptr[i]);
-        i++;
-    }
-    ext_lower[i] = '\0';
+        found_cat = CAT_UNKNOWN;
+        found_ext[0] = '\0';
+    } else {
+        char ext_lower[32];
+        const char *ext_ptr = dot + 1;
+        size_t i = 0;
+        while (ext_ptr[i] && i < 31) {
+            ext_lower[i] = (char)tolower((unsigned char)ext_ptr[i]);
+            i++;
+        }
+        ext_lower[i] = '\0';
 
-    uint32_t idx = hash_ext(ext_lower);
-    uint32_t start_idx = idx;
-    while (EXT_HASH_TABLE[idx] != -1) {
-        int table_idx = EXT_HASH_TABLE[idx];
-        if (strcmp(EXTENSION_TABLE[table_idx].ext, ext_lower) == 0) {
-            if (ts->config->allowed_exts && !ts->config->allowed_exts[table_idx]) return;
-            ts->stats.ext_counts[table_idx]++;
-            ts->stats.cat_counts[EXTENSION_TABLE[table_idx].category]++;
+        uint32_t idx = hash_ext(ext_lower);
+        uint32_t start_idx = idx;
+        int matched = 0;
+        while (EXT_HASH_TABLE[idx] != -1) {
+            int table_idx = EXT_HASH_TABLE[idx];
+            if (strcmp(EXTENSION_TABLE[table_idx].ext, ext_lower) == 0) {
+                if (ts->config->allowed_exts && !ts->config->allowed_exts[table_idx]) return;
+                ts->stats.ext_counts[table_idx]++;
+                ts->stats.cat_counts[EXTENSION_TABLE[table_idx].category]++;
+                ts->stats.total_files++;
+                ATOMIC_ADD(&g_atomic_scanned, 1);
+                found_cat = EXTENSION_TABLE[table_idx].category;
+                strcpy(found_ext, EXTENSION_TABLE[table_idx].ext);
+                matched = 1;
+                break;
+            }
+            idx = (idx + 1) % HASH_SIZE;
+            if (idx == start_idx) break;
+        }
+        if (!matched) {
+            if (ts->config->allowed_exts) return;
+            ts->stats.cat_counts[CAT_UNKNOWN]++;
             ts->stats.total_files++;
             ATOMIC_ADD(&g_atomic_scanned, 1);
-            return;
+            found_cat = CAT_UNKNOWN;
+            strcpy(found_ext, ext_lower);
         }
-        idx = (idx + 1) % HASH_SIZE;
-        if (idx == start_idx) break;
     }
-    if (!ts->config->allowed_exts) {
-        ts->stats.cat_counts[CAT_UNKNOWN]++;
-        ts->stats.total_files++;
-        ATOMIC_ADD(&g_atomic_scanned, 1);
+
+    /* Collect full FileInfo when any of these features are active */
+    if (ts->config->return_files || ts->config->export_csv || ts->config->find_duplicates) {
+        if (ts->files.size >= ts->files.capacity) {
+            ts->files.capacity = ts->files.capacity == 0 ? FILEARRAY_INIT_CAP : ts->files.capacity * 2;
+            ts->files.data = realloc(ts->files.data, ts->files.capacity * sizeof(FileInfo));
+        }
+        FileInfo *fi = &ts->files.data[ts->files.size++];
+        fi->path = strdup(ts->current_file_path);
+        fi->size = ts->current_file_size;
+        fi->mtime = ts->current_file_mtime;
+        fi->category = found_cat;
+        strcpy(fi->ext, found_ext);
+    }
+
+    /* Top-N largest files heap */
+    if (ts->config->largest_n > 0) {
+        FileInfo fi;
+        fi.path = ts->current_file_path;
+        fi.size = ts->current_file_size;
+        fi.mtime = ts->current_file_mtime;
+        fi.category = found_cat;
+        strcpy(fi.ext, found_ext);
+        heap_push(&ts->top_files, fi, ts->config->largest_n);
     }
 }
+
+/* -------------------------------------------------------------------------
+   Report Printing
+   ------------------------------------------------------------------------- */
 
 static void print_report(const ScanStats *s, double elapsed) {
     int i;
@@ -310,7 +519,25 @@ static void print_report(const ScanStats *s, double elapsed) {
     PySys_WriteStdout("\nTime     : %.4f seconds\n", elapsed);
     PySys_WriteStdout("Errors   : %" PRIu64 " (permission denied / inaccessible)\n",
         s->scan_errors);
-    PySys_WriteStdout("===================================================\n\n");
+    PySys_WriteStdout("===================================================\n");
+
+    if (s->largest_n > 0 && s->top_files_count > 0) {
+        PySys_WriteStdout("\n=== TOP %d LARGEST FILES ===========================\n", s->largest_n);
+        int limit = s->top_files_count > s->largest_n ? s->largest_n : s->top_files_count;
+        for (int k = 0; k < limit; k++) {
+            PySys_WriteStdout("%12" PRIu64 " bytes : %s\n",
+                s->top_files[k].size, s->top_files[k].path);
+        }
+        PySys_WriteStdout("===================================================\n");
+    }
+
+    if (s->find_duplicates_enabled) {
+        PySys_WriteStdout("\n=== DUPLICATES SUMMARY ============================\n");
+        PySys_WriteStdout("Groups found : %" PRIu64 "\n", s->duplicates_groups);
+        PySys_WriteStdout("===================================================\n");
+    }
+
+    PySys_WriteStdout("\n\n");
 }
 
 /* -------------------------------------------------------------------------
@@ -362,7 +589,7 @@ static void queue_task_done(WorkQueue *q) {
 }
 
 /* -------------------------------------------------------------------------
-   Core Scanning Logic (Fixed for DFS Tree Output & File Printing)
+   Core Scanning Logic (DFS-correct Tree + parallel BFS for speed)
    ------------------------------------------------------------------------- */
 
 static void process_dir_recursive(const char *base_path, int depth, ThreadState *ts);
@@ -383,32 +610,25 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
     do {
         if (wcscmp(findData.cFileName, L".") == 0 || wcscmp(findData.cFileName, L"..") == 0) continue;
         WideCharToMultiByte(CP_UTF8, 0, findData.cFileName, -1, filenameUtf8, PATH_MAX, NULL, NULL);
-        
+
         if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             if (findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
-            
-            /* Apply junk filter only if ignore_junk is enabled */
             if (ts->config->ignore_junk && is_ignored(filenameUtf8)) continue;
-            
+
             snprintf(current_slab, PATH_MAX, "%s\\%s", base_path, filenameUtf8);
-            
+
             if (ts->config->show_tree) {
                 mutex_lock(&ts->queue->lock);
                 PyGILState_STATE gstate = PyGILState_Ensure();
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
-                PySys_WriteStdout("  |-- [%s]\n", filenameUtf8); /* Bracket indicates folder */
+                PySys_WriteStdout("  |-- [%s]\n", filenameUtf8);
                 PyGILState_Release(gstate);
-
-                /* === NEW FEATURE: export_tree === */
                 if (ts->config->tree_file) {
                     for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
                     fprintf(ts->config->tree_file, "  |-- [%s]\n", filenameUtf8);
                     fflush(ts->config->tree_file);
                 }
-
                 mutex_unlock(&ts->queue->lock);
-                
-                /* Immediate recursive call enforces strict Depth-First Search for the tree */
                 process_dir_recursive(current_slab, depth + 1, ts);
             } else {
                 if (depth < 3 && !queue_push(ts->queue, current_slab, depth + 1))
@@ -417,27 +637,28 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                     process_dir_recursive(current_slab, depth + 1, ts);
             }
         } else {
-            if (ts->config->min_size > 0) {
-                LARGE_INTEGER size;
-                size.HighPart = findData.nFileSizeHigh;
-                size.LowPart = findData.nFileSizeLow;
-                if ((uint64_t)size.QuadPart < ts->config->min_size) continue;
-            }
-            
+            uint64_t fsize = ((uint64_t)findData.nFileSizeHigh << 32) | findData.nFileSizeLow;
+            uint64_t mtime = ((uint64_t)findData.ftLastWriteTime.dwHighDateTime << 32)
+                             | findData.ftLastWriteTime.dwLowDateTime;
+            mtime = (mtime - 116444736000000000ULL) / 10000000ULL;
+
+            if (ts->config->min_size > 0 && fsize < ts->config->min_size) continue;
+
+            ts->current_file_size = fsize;
+            ts->current_file_mtime = mtime;
+            snprintf(ts->current_file_path, PATH_MAX, "%s\\%s", base_path, filenameUtf8);
+
             if (ts->config->show_tree) {
                 mutex_lock(&ts->queue->lock);
                 PyGILState_STATE gstate = PyGILState_Ensure();
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
-                PySys_WriteStdout("  |-- %s\n", filenameUtf8); /* No bracket indicates file */
+                PySys_WriteStdout("  |-- %s\n", filenameUtf8);
                 PyGILState_Release(gstate);
-
-                /* === NEW FEATURE: export_tree === */
                 if (ts->config->tree_file) {
                     for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
                     fprintf(ts->config->tree_file, "  |-- %s\n", filenameUtf8);
                     fflush(ts->config->tree_file);
                 }
-
                 mutex_unlock(&ts->queue->lock);
             }
             identify_and_count(filenameUtf8, ts);
@@ -464,34 +685,47 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
             unsigned char type = d->d_type;
             struct stat st;
             uint64_t file_size = 0;
-            if (type == DT_UNKNOWN || ts->config->min_size > 0) {
+            uint64_t file_mtime = 0;
+            int stat_called = 0;
+
+            if (type == DT_UNKNOWN) {
                 if (fstatat(dirfd, d->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0) {
+                    stat_called = 1;
                     if (S_ISDIR(st.st_mode)) type = DT_DIR;
                     else if (S_ISREG(st.st_mode)) type = DT_REG;
-                    file_size = st.st_size;
                 }
             }
+
+            if (type == DT_REG &&
+                (ts->config->min_size > 0 || ts->config->return_files ||
+                 ts->config->export_csv || ts->config->find_duplicates ||
+                 ts->config->largest_n > 0)) {
+                if (!stat_called) {
+                    if (fstatat(dirfd, d->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0)
+                        stat_called = 1;
+                }
+                if (stat_called) {
+                    file_size = st.st_size;
+                    file_mtime = st.st_mtime;
+                }
+            }
+
             if (type == DT_DIR) {
                 if (ts->config->ignore_junk && is_ignored(d->d_name)) continue;
-                
                 snprintf(current_slab, PATH_MAX, "%s/%s", base_path, d->d_name);
-                
+
                 if (ts->config->show_tree) {
                     mutex_lock(&ts->queue->lock);
                     PyGILState_STATE gstate = PyGILState_Ensure();
                     for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
-                    PySys_WriteStdout("  |--[%s]\n", d->d_name);
+                    PySys_WriteStdout("  |-- [%s]\n", d->d_name);
                     PyGILState_Release(gstate);
-
-                    /* === NEW FEATURE: export_tree === */
                     if (ts->config->tree_file) {
                         for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
                         fprintf(ts->config->tree_file, "  |-- [%s]\n", d->d_name);
                         fflush(ts->config->tree_file);
                     }
-
                     mutex_unlock(&ts->queue->lock);
-                    
                     process_dir_recursive(current_slab, depth + 1, ts);
                 } else {
                     if (depth < 3 && !queue_push(ts->queue, current_slab, depth + 1))
@@ -501,20 +735,21 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                 }
             } else if (type == DT_REG) {
                 if (ts->config->min_size > 0 && file_size < ts->config->min_size) continue;
+                ts->current_file_size = file_size;
+                ts->current_file_mtime = file_mtime;
+                snprintf(ts->current_file_path, PATH_MAX, "%s/%s", base_path, d->d_name);
+
                 if (ts->config->show_tree) {
                     mutex_lock(&ts->queue->lock);
                     PyGILState_STATE gstate = PyGILState_Ensure();
                     for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                     PySys_WriteStdout("  |-- %s\n", d->d_name);
                     PyGILState_Release(gstate);
-
-                    /* === NEW FEATURE: export_tree === */
                     if (ts->config->tree_file) {
                         for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
                         fprintf(ts->config->tree_file, "  |-- %s\n", d->d_name);
                         fflush(ts->config->tree_file);
                     }
-
                     mutex_unlock(&ts->queue->lock);
                 }
                 identify_and_count(d->d_name, ts);
@@ -537,23 +772,18 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
         if (lstat(current_slab, &st) != 0) continue;
         if (S_ISDIR(st.st_mode)) {
             if (ts->config->ignore_junk && is_ignored(entry->d_name)) continue;
-
             if (ts->config->show_tree) {
                 mutex_lock(&ts->queue->lock);
                 PyGILState_STATE gstate = PyGILState_Ensure();
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                 PySys_WriteStdout("  |-- [%s]\n", entry->d_name);
                 PyGILState_Release(gstate);
-
-                /* === NEW FEATURE: export_tree === */
                 if (ts->config->tree_file) {
                     for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
                     fprintf(ts->config->tree_file, "  |-- [%s]\n", entry->d_name);
                     fflush(ts->config->tree_file);
                 }
-
                 mutex_unlock(&ts->queue->lock);
-                
                 process_dir_recursive(current_slab, depth + 1, ts);
             } else {
                 if (depth < 3 && !queue_push(ts->queue, current_slab, depth + 1))
@@ -563,20 +793,20 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
             }
         } else if (S_ISREG(st.st_mode)) {
             if (ts->config->min_size > 0 && (uint64_t)st.st_size < ts->config->min_size) continue;
+            ts->current_file_size = st.st_size;
+            ts->current_file_mtime = st.st_mtime;
+            snprintf(ts->current_file_path, PATH_MAX, "%s", current_slab);
             if (ts->config->show_tree) {
                 mutex_lock(&ts->queue->lock);
                 PyGILState_STATE gstate = PyGILState_Ensure();
                 for (int i = 0; i < depth; i++) PySys_WriteStdout("  |   ");
                 PySys_WriteStdout("  |-- %s\n", entry->d_name);
                 PyGILState_Release(gstate);
-
-                /* === NEW FEATURE: export_tree === */
                 if (ts->config->tree_file) {
                     for (int i = 0; i < depth; i++) fprintf(ts->config->tree_file, "  |   ");
                     fprintf(ts->config->tree_file, "  |-- %s\n", entry->d_name);
                     fflush(ts->config->tree_file);
                 }
-
                 mutex_unlock(&ts->queue->lock);
             }
             identify_and_count(entry->d_name, ts);
@@ -651,7 +881,33 @@ static void* progress_thread_func(void *arg) {
 }
 
 /* -------------------------------------------------------------------------
-   Python Interface
+   Duplicate Finding Helpers
+   ------------------------------------------------------------------------- */
+
+typedef struct {
+    char *path;
+    uint64_t size;
+    uint32_t crc32;
+} DupCand;
+
+static int cmp_dupcand_size(const void *a, const void *b) {
+    uint64_t sa = ((const DupCand*)a)->size;
+    uint64_t sb = ((const DupCand*)b)->size;
+    if (sa < sb) return -1;
+    if (sa > sb) return 1;
+    return 0;
+}
+
+static int cmp_dupcand_crc(const void *a, const void *b) {
+    uint32_t ca = ((const DupCand*)a)->crc32;
+    uint32_t cb = ((const DupCand*)b)->crc32;
+    if (ca < cb) return -1;
+    if (ca > cb) return 1;
+    return 0;
+}
+
+/* -------------------------------------------------------------------------
+   Python Interface — anscom.scan()
    ------------------------------------------------------------------------- */
 
 static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
@@ -659,16 +915,19 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     int max_depth = 6;
     int show_tree = 0;
     int workers = 0;
-    int silent = 0; 
-    int ignore_junk = 0;  /* Default 0: Never miss anything */
+    int silent = 0;
+    int ignore_junk = 0;
     unsigned long long min_size = 0;
     PyObject *extensions_list = Py_None;
     PyObject *callback = Py_None;
 
-    /* === NEW FEATURE: export_json, export_excel, export_tree === */
-    const char *export_json = NULL;
-    const char *export_excel = NULL;
-    const char *export_tree = NULL;
+    const char *export_json  = NULL;
+    const char *export_tree  = NULL;
+    int return_files         = 0;
+    const char *export_csv   = NULL;
+    int largest_n            = 0;
+    int find_duplicates      = 0;
+    const char *regex_filter = NULL;
 
     double elapsed = 0.0;
 #ifdef _WIN32
@@ -680,19 +939,20 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     static char *kwlist[] = {
         "path", "max_depth", "show_tree", "workers",
         "min_size", "extensions", "callback", "silent", "ignore_junk",
-        "export_json", "export_excel", "export_tree", NULL
+        "export_json", "export_tree",
+        "return_files", "export_csv", "largest_n", "find_duplicates", "regex_filter", NULL
     };
 
-    /* Formatter string updated to support new optional string parameters */
-    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|ipiKOOppzzz", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|ipiKOOppzzpzipz", kwlist,
                                      &input_path, &max_depth, &show_tree, &workers,
                                      &min_size, &extensions_list, &callback, &silent, &ignore_junk,
-                                     &export_json, &export_excel, &export_tree)) {
+                                     &export_json, &export_tree,
+                                     &return_files, &export_csv, &largest_n, &find_duplicates,
+                                     &regex_filter)) {
         return NULL;
     }
 
     if (input_path[0] == '\0') input_path = ".";
-
     if (max_depth < 0) max_depth = 0;
     if (max_depth > 64) max_depth = 64;
 
@@ -710,13 +970,18 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     ScanConfig config;
     memset(&config, 0, sizeof(config));
-    config.max_depth = max_depth;
-    config.show_tree = show_tree;
-    config.workers = workers;
-    config.min_size = min_size;
-    config.callback = callback;
-    config.ignore_junk = ignore_junk;
+    config.max_depth      = max_depth;
+    config.show_tree      = show_tree;
+    config.workers        = workers;
+    config.min_size       = min_size;
+    config.callback       = callback;
+    config.ignore_junk    = ignore_junk;
+    config.return_files   = return_files;
+    config.export_csv     = export_csv;
+    config.largest_n      = largest_n;
+    config.find_duplicates = find_duplicates;
 
+    /* Extension whitelist */
     if (extensions_list != Py_None && PyList_Check(extensions_list)) {
         config.allowed_exts = calloc(EXTENSION_COUNT, sizeof(uint8_t));
         Py_ssize_t size = PyList_Size(extensions_list);
@@ -739,7 +1004,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         }
     }
 
-    /* === NEW FEATURE: export_tree === */
+    /* Tree file output */
     if (show_tree && export_tree != NULL) {
         config.tree_file = fopen(export_tree, "w");
         if (!config.tree_file) {
@@ -751,11 +1016,41 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         config.tree_file = NULL;
     }
 
+    /* Regex compilation — POSIX native on Linux for zero-overhead filtering */
+    if (regex_filter) {
+        PyObject *re_mod = PyImport_ImportModule("re");
+        if (re_mod) {
+            PyObject *compile_func = PyObject_GetAttrString(re_mod, "compile");
+            if (compile_func) {
+                config.regex_compiled = PyObject_CallFunction(compile_func, "s", regex_filter);
+                Py_DECREF(compile_func);
+            }
+            Py_DECREF(re_mod);
+        }
+        if (!config.regex_compiled) {
+            PyErr_SetString(PyExc_ValueError, "Failed to compile regex_filter.");
+            if (config.allowed_exts) free(config.allowed_exts);
+            if (config.tree_file) fclose(config.tree_file);
+            return NULL;
+        }
+#ifndef _WIN32
+        if (regcomp(&config.regex_compiled_posix, regex_filter, REG_EXTENDED | REG_NOSUB) == 0) {
+            config.has_posix_regex = 1;
+        } else {
+            config.has_posix_regex = 0;
+        }
+#endif
+    }
+
     WorkQueue *queue = (WorkQueue *)calloc(1, sizeof(WorkQueue));
     if (!queue) {
         PyErr_NoMemory();
         if (config.allowed_exts) free(config.allowed_exts);
         if (config.tree_file) fclose(config.tree_file);
+        if (config.regex_compiled) Py_DECREF(config.regex_compiled);
+#ifndef _WIN32
+        if (config.has_posix_regex) regfree(&config.regex_compiled_posix);
+#endif
         return NULL;
     }
     mutex_init(&queue->lock);
@@ -767,12 +1062,20 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     for (int i = 0; i < workers; i++) {
         threads[i].config = &config;
-        threads[i].queue = queue;
+        threads[i].queue  = queue;
+        threads[i].files.capacity = FILEARRAY_INIT_CAP;
+        threads[i].files.data = malloc(FILEARRAY_INIT_CAP * sizeof(FileInfo));
+        threads[i].files.size = 0;
+        if (largest_n > 0) {
+            threads[i].top_files.capacity = largest_n;
+            threads[i].top_files.data = malloc(largest_n * sizeof(FileInfo));
+            threads[i].top_files.size = 0;
+        }
     }
 
     g_atomic_scanned = 0;
 
-    PySys_WriteStdout("\nAnscom Enterprise v1.3.0 (Threads: %d)\n", workers);
+    PySys_WriteStdout("\nAnscom Enterprise v1.4.0 (Threads: %d)\n", workers);
     PySys_WriteStdout("Target: %s\n", input_path);
 
 #ifdef _WIN32
@@ -822,7 +1125,6 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     pthread_join(progress_thread, NULL);
 #endif
 
-    /* === NEW FEATURE: export_tree cleanup === */
     if (config.tree_file) {
         fclose(config.tree_file);
         config.tree_file = NULL;
@@ -852,15 +1154,130 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
             final_stats.ext_counts[e] += threads[i].stats.ext_counts[e];
     }
 
-    free(threads);
-    free(thread_handles);
-    free(queue);
-    if (config.allowed_exts) free(config.allowed_exts);
+    /* Merge file arrays */
+    uint64_t global_files_count = 0;
+    for (int i = 0; i < workers; i++) global_files_count += threads[i].files.size;
 
-    if (!silent) {
-        print_report(&final_stats, elapsed);
+    FileInfo *global_files = NULL;
+    if (global_files_count > 0) {
+        global_files = malloc(global_files_count * sizeof(FileInfo));
+        uint64_t offset = 0;
+        for (int i = 0; i < workers; i++) {
+            if (threads[i].files.size > 0) {
+                memcpy(global_files + offset, threads[i].files.data,
+                       threads[i].files.size * sizeof(FileInfo));
+                offset += threads[i].files.size;
+            }
+        }
     }
 
+    /* Merge top-N heaps */
+    TopKHeap global_heap = {0};
+    global_heap.capacity = largest_n;
+    if (largest_n > 0) {
+        global_heap.data = malloc(largest_n * sizeof(FileInfo));
+        for (int i = 0; i < workers; i++) {
+            for (int j = 0; j < threads[i].top_files.size; j++) {
+                heap_push(&global_heap, threads[i].top_files.data[j], largest_n);
+            }
+        }
+    }
+
+    int top_count = global_heap.size;
+    FileInfo *sorted_top = NULL;
+    if (top_count > 0) {
+        sorted_top = malloc(top_count * sizeof(FileInfo));
+        for (int i = 0; i < top_count; i++) {
+            sorted_top[i] = global_heap.data[i];
+            sorted_top[i].path = strdup(global_heap.data[i].path);
+        }
+        /* Insertion sort — top_count is small (largest_n entries) */
+        for (int i = 0; i < top_count - 1; i++) {
+            for (int j = i + 1; j < top_count; j++) {
+                if (sorted_top[j].size > sorted_top[i].size) {
+                    FileInfo temp = sorted_top[i];
+                    sorted_top[i] = sorted_top[j];
+                    sorted_top[j] = temp;
+                }
+            }
+        }
+    }
+    final_stats.top_files       = sorted_top;
+    final_stats.top_files_count = top_count;
+    final_stats.largest_n       = largest_n;
+    final_stats.find_duplicates_enabled = find_duplicates;
+
+    /* Duplicate detection: sort by size → CRC32 bucket within same size */
+    PyObject *duplicates_list = NULL;
+    if (find_duplicates) {
+        duplicates_list = PyList_New(0);
+        if (global_files_count > 1) {
+            DupCand *cands = malloc(global_files_count * sizeof(DupCand));
+            for (size_t i = 0; i < global_files_count; i++) {
+                cands[i].path  = global_files[i].path;
+                cands[i].size  = global_files[i].size;
+                cands[i].crc32 = 0;
+            }
+            qsort(cands, global_files_count, sizeof(DupCand), cmp_dupcand_size);
+
+            size_t start = 0;
+            while (start < global_files_count) {
+                size_t end = start + 1;
+                while (end < global_files_count && cands[end].size == cands[start].size) end++;
+                if (end - start > 1 && cands[start].size > 0) {
+                    for (size_t i = start; i < end; i++)
+                        cands[i].crc32 = get_file_crc(cands[i].path);
+                    qsort(&cands[start], end - start, sizeof(DupCand), cmp_dupcand_crc);
+
+                    size_t cstart = start;
+                    while (cstart < end) {
+                        size_t cend = cstart + 1;
+                        while (cend < end && cands[cend].crc32 == cands[cstart].crc32) cend++;
+                        if (cend - cstart > 1) {
+                            PyObject *group = PyList_New(0);
+                            for (size_t k = cstart; k < cend; k++) {
+                                PyObject *pystr = PyUnicode_FromString(cands[k].path);
+                                PyList_Append(group, pystr);
+                                Py_DECREF(pystr);
+                            }
+                            PyList_Append(duplicates_list, group);
+                            Py_DECREF(group);
+                            final_stats.duplicates_groups++;
+                        }
+                        cstart = cend;
+                    }
+                }
+                start = end;
+            }
+            free(cands);
+        }
+    }
+
+    if (!silent) print_report(&final_stats, elapsed);
+
+    /* CSV Export */
+    if (export_csv != NULL && global_files_count > 0) {
+        FILE *f = fopen(export_csv, "w");
+        if (f) {
+            fprintf(f, "path,size,ext,category,mtime\n");
+            for (uint64_t i = 0; i < global_files_count; i++) {
+                char *p = global_files[i].path;
+                fputc('"', f);
+                while (*p) {
+                    if (*p == '"') fputc('"', f);
+                    fputc(*p++, f);
+                }
+                fprintf(f, "\",%" PRIu64 ",%s,%s,%" PRIu64 "\n",
+                        global_files[i].size,
+                        global_files[i].ext,
+                        CAT_NAMES[global_files[i].category],
+                        global_files[i].mtime);
+            }
+            fclose(f);
+        }
+    }
+
+    /* Build result dict */
     PyObject *res_dict = PyDict_New();
     PyDict_SetItemString(res_dict, "total_files",      PyLong_FromUnsignedLongLong(final_stats.total_files));
     PyDict_SetItemString(res_dict, "scan_errors",      PyLong_FromUnsignedLongLong(final_stats.scan_errors));
@@ -868,19 +1285,55 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     PyObject *cat_dict = PyDict_New();
     for (int i = 0; i < CAT_COUNT; i++)
-        PyDict_SetItemString(cat_dict, CAT_NAMES[i], PyLong_FromUnsignedLongLong(final_stats.cat_counts[i]));
+        PyDict_SetItemString(cat_dict, CAT_NAMES[i],
+                             PyLong_FromUnsignedLongLong(final_stats.cat_counts[i]));
     PyDict_SetItemString(res_dict, "categories", cat_dict);
     Py_DECREF(cat_dict);
 
     PyObject *ext_dict = PyDict_New();
     for (int i = 0; i < EXTENSION_COUNT; i++) {
         if (final_stats.ext_counts[i] > 0)
-            PyDict_SetItemString(ext_dict, EXTENSION_TABLE[i].ext, PyLong_FromUnsignedLongLong(final_stats.ext_counts[i]));
+            PyDict_SetItemString(ext_dict, EXTENSION_TABLE[i].ext,
+                                 PyLong_FromUnsignedLongLong(final_stats.ext_counts[i]));
     }
     PyDict_SetItemString(res_dict, "extensions", ext_dict);
     Py_DECREF(ext_dict);
 
-    /* === NEW FEATURE: export_json === */
+    if (return_files) {
+        PyObject *files_list = PyList_New(0);
+        for (uint64_t i = 0; i < global_files_count; i++) {
+            PyObject *file_dict = PyDict_New();
+            PyDict_SetItemString(file_dict, "path",     PyUnicode_FromString(global_files[i].path));
+            PyDict_SetItemString(file_dict, "size",     PyLong_FromUnsignedLongLong(global_files[i].size));
+            PyDict_SetItemString(file_dict, "ext",      PyUnicode_FromString(global_files[i].ext));
+            PyDict_SetItemString(file_dict, "category", PyUnicode_FromString(CAT_NAMES[global_files[i].category]));
+            PyDict_SetItemString(file_dict, "mtime",    PyLong_FromUnsignedLongLong(global_files[i].mtime));
+            PyList_Append(files_list, file_dict);
+            Py_DECREF(file_dict);
+        }
+        PyDict_SetItemString(res_dict, "files", files_list);
+        Py_DECREF(files_list);
+    }
+
+    if (largest_n > 0) {
+        PyObject *top_list = PyList_New(0);
+        for (int i = 0; i < top_count; i++) {
+            PyObject *file_dict = PyDict_New();
+            PyDict_SetItemString(file_dict, "path", PyUnicode_FromString(sorted_top[i].path));
+            PyDict_SetItemString(file_dict, "size", PyLong_FromUnsignedLongLong(sorted_top[i].size));
+            PyList_Append(top_list, file_dict);
+            Py_DECREF(file_dict);
+        }
+        PyDict_SetItemString(res_dict, "largest_files", top_list);
+        Py_DECREF(top_list);
+    }
+
+    if (find_duplicates && duplicates_list) {
+        PyDict_SetItemString(res_dict, "duplicates", duplicates_list);
+        Py_DECREF(duplicates_list);
+    }
+
+    /* JSON Export */
     if (export_json != NULL) {
         PyObject *json_mod = PyImport_ImportModule("json");
         if (json_mod) {
@@ -890,24 +1343,17 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
                 PyObject *indent_val = PyLong_FromLong(4);
                 PyDict_SetItemString(kwargs, "indent", indent_val);
                 Py_DECREF(indent_val);
-
                 PyObject *args_tuple = PyTuple_Pack(1, res_dict);
                 PyObject *json_str_obj = PyObject_Call(dumps_func, args_tuple, kwargs);
-                
                 if (json_str_obj) {
                     const char *json_str = PyUnicode_AsUTF8(json_str_obj);
                     if (json_str) {
                         FILE *f = fopen(export_json, "w");
-                        if (f) {
-                            fputs(json_str, f);
-                            fclose(f);
-                        } else {
-                            PyErr_SetFromErrnoWithFilename(PyExc_IOError, export_json);
-                        }
+                        if (f) { fputs(json_str, f); fclose(f); }
+                        else PyErr_SetFromErrnoWithFilename(PyExc_IOError, export_json);
                     }
                     Py_DECREF(json_str_obj);
                 }
-                
                 Py_DECREF(args_tuple);
                 Py_DECREF(kwargs);
                 Py_DECREF(dumps_func);
@@ -916,98 +1362,49 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         }
         if (PyErr_Occurred()) {
             Py_DECREF(res_dict);
+            /* Cleanup before early return */
+            if (global_files) {
+                for (uint64_t i = 0; i < global_files_count; i++) free(global_files[i].path);
+                free(global_files);
+            }
+            free(threads); free(thread_handles); free(queue);
+            if (config.allowed_exts) free(config.allowed_exts);
+            if (config.regex_compiled) Py_DECREF(config.regex_compiled);
+#ifndef _WIN32
+            if (config.has_posix_regex) regfree(&config.regex_compiled_posix);
+#endif
             return NULL;
         }
     }
 
-    /* === NEW FEATURE: export_excel === */
-    if (export_excel != NULL) {
-        PyObject *openpyxl = PyImport_ImportModule("openpyxl");
-        if (!openpyxl) {
-            PyErr_Clear();
-            PyErr_SetString(PyExc_ImportError, "openpyxl is required for export_excel but not installed. Please install it via 'pip install openpyxl'.");
-            Py_DECREF(res_dict);
-            return NULL;
-        }
-        
-        PyObject *wb = PyObject_CallMethod(openpyxl, "Workbook", NULL);
-        if (wb) {
-            PyObject *ws_cat = PyObject_GetAttrString(wb, "active");
-            if (ws_cat) {
-                PyObject *title_str = PyUnicode_FromString("Categories");
-                PyObject_SetAttrString(ws_cat, "title", title_str);
-                Py_DECREF(title_str);
-
-                PyObject *row_tuple = Py_BuildValue("(sss)", "Category", "Count", "Percentage");
-                PyObject *res = PyObject_CallMethod(ws_cat, "append", "O", row_tuple);
-                Py_DECREF(row_tuple);
-                Py_XDECREF(res);
-                
-                for (int i = 0; i < CAT_COUNT; i++) {
-                    double pct = final_stats.total_files ? ((double)final_stats.cat_counts[i] / final_stats.total_files * 100.0) : 0.0;
-                    row_tuple = Py_BuildValue("(sKd)", CAT_NAMES[i], final_stats.cat_counts[i], pct);
-                    res = PyObject_CallMethod(ws_cat, "append", "O", row_tuple);
-                    Py_DECREF(row_tuple);
-                    Py_XDECREF(res);
-                }
-                Py_DECREF(ws_cat);
-            }
-
-            PyObject *ws_ext = PyObject_CallMethod(wb, "create_sheet", "s", "Extensions");
-            if (ws_ext) {
-                PyObject *row_tuple = Py_BuildValue("(ss)", "Extension", "Count");
-                Py_DECREF(row_tuple);
-                PyObject *res = PyObject_CallMethod(ws_ext, "append", "O", row_tuple);
-                Py_XDECREF(res);
-                
-                for (int i = 0; i < EXTENSION_COUNT; i++) {
-                    if (final_stats.ext_counts[i] > 0) {
-                        row_tuple = Py_BuildValue("(sK)", EXTENSION_TABLE[i].ext, final_stats.ext_counts[i]);
-                        res = PyObject_CallMethod(ws_ext, "append", "O", row_tuple);
-                        Py_DECREF(row_tuple);
-                        Py_XDECREF(res);
-                    }
-                }
-                Py_DECREF(ws_ext);
-            }
-
-            PyObject *ws_sum = PyObject_CallMethod(wb, "create_sheet", "s", "Summary");
-            if (ws_sum) {
-                PyObject *row_tuple = Py_BuildValue("(ss)", "Metric", "Value");
-                PyObject *res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
-                Py_DECREF(row_tuple);
-                Py_XDECREF(res);
-                
-                row_tuple = Py_BuildValue("(sK)", "Total Files", final_stats.total_files);
-                res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
-                Py_DECREF(row_tuple);
-                Py_XDECREF(res);
-
-                row_tuple = Py_BuildValue("(sK)", "Errors", final_stats.scan_errors);
-                res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
-                Py_DECREF(row_tuple);
-                Py_XDECREF(res);
-
-                row_tuple = Py_BuildValue("(sd)", "Duration (s)", elapsed);
-                res = PyObject_CallMethod(ws_sum, "append", "O", row_tuple);
-                Py_DECREF(row_tuple);
-                Py_XDECREF(res);
-
-                Py_DECREF(ws_sum);
-            }
-
-            PyObject *res_save = PyObject_CallMethod(wb, "save", "s", export_excel);
-            Py_XDECREF(res_save);
-
-            Py_DECREF(wb);
-        }
-        Py_DECREF(openpyxl);
-        
-        if (PyErr_Occurred()) {
-            Py_DECREF(res_dict);
-            return NULL;
-        }
+    /* Cleanup */
+    if (global_files) {
+        for (uint64_t i = 0; i < global_files_count; i++) free(global_files[i].path);
+        free(global_files);
     }
+    for (int i = 0; i < workers; i++) {
+        if (threads[i].files.data) free(threads[i].files.data);
+        for (int j = 0; j < threads[i].top_files.size; j++) free(threads[i].top_files.data[j].path);
+        if (threads[i].top_files.data) free(threads[i].top_files.data);
+    }
+    if (sorted_top) {
+        for (int i = 0; i < top_count; i++) free(sorted_top[i].path);
+        free(sorted_top);
+    }
+    if (global_heap.data) {
+        for (int i = 0; i < global_heap.size; i++) free(global_heap.data[i].path);
+        free(global_heap.data);
+    }
+    if (config.regex_compiled) {
+        Py_DECREF(config.regex_compiled);
+#ifndef _WIN32
+        if (config.has_posix_regex) regfree(&config.regex_compiled_posix);
+#endif
+    }
+    free(threads);
+    free(thread_handles);
+    free(queue);
+    if (config.allowed_exts) free(config.allowed_exts);
 
     return res_dict;
 }
@@ -1018,21 +1415,47 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
 static PyMethodDef AnscomMethods[] = {
     {"scan", (PyCFunction)(void(*)(void))anscom_scan, METH_VARARGS | METH_KEYWORDS,
-     "scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, "
-     "extensions=None, callback=None, silent=False, ignore_junk=False, "
-     "export_json=None, export_excel=None, export_tree=None) -> dict"},
+     "scan(path, max_depth=6, show_tree=False, workers=0, min_size=0,\n"
+     "     extensions=None, callback=None, silent=False, ignore_junk=False,\n"
+     "     export_json=None, export_tree=None,\n"
+     "     return_files=False, export_csv=None, largest_n=0,\n"
+     "     find_duplicates=False, regex_filter=None) -> dict\n\n"
+     "High-performance multi-threaded recursive file scanner.\n\n"
+     "Parameters\n----------\n"
+     "path         : str   — root directory to scan\n"
+     "max_depth    : int   — maximum recursion depth (default 6, max 64)\n"
+     "show_tree    : bool  — print directory tree to stdout (forces workers=1)\n"
+     "workers      : int   — thread count (0 = auto-detect CPU count)\n"
+     "min_size     : int   — skip files smaller than this many bytes\n"
+     "extensions   : list  — whitelist of extensions to count, e.g. ['py','js']\n"
+     "callback     : func  — called every ~1 s with (files_scanned,)\n"
+     "silent       : bool  — suppress the summary report\n"
+     "ignore_junk  : bool  — skip common junk dirs (node_modules, .git, etc.)\n"
+     "export_json  : str   — path to write JSON report\n"
+     "export_tree  : str   — path to write tree text file (requires show_tree)\n"
+     "return_files : bool  — include full file list in returned dict\n"
+     "export_csv   : str   — path to write CSV of all files\n"
+     "largest_n    : int   — report top-N largest files\n"
+     "find_duplicates: bool — detect duplicate files (CRC32 after size match)\n"
+     "regex_filter : str   — only count files whose path matches this pattern\n\n"
+     "Returns\n-------\n"
+     "dict with keys: total_files, scan_errors, duration_seconds,\n"
+     "                categories, extensions, [files], [largest_files], [duplicates]"},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef anscommodule = {
     PyModuleDef_HEAD_INIT,
     "anscom",
-    "Analyst grade recursive file scanner (v1.3.0 Tree Structure Edition).",
+    "Anscom Enterprise v1.4.0 — High-performance native C recursive file scanner.\n"
+    "Multi-threaded, terabyte-scale. Features: tree, JSON, CSV, duplicates,\n"
+    "largest-N, regex filter, extension whitelist, progress callback.",
     -1,
     AnscomMethods
 };
 
 PyMODINIT_FUNC PyInit_anscom(void) {
+    /* Build open-addressing hash table for extension lookup */
     for (int i = 0; i < HASH_SIZE; i++) EXT_HASH_TABLE[i] = -1;
     for (int i = 0; i < EXTENSION_COUNT; i++) {
         if (i > 0 && strcmp(EXTENSION_TABLE[i-1].ext, EXTENSION_TABLE[i].ext) >= 0) {
