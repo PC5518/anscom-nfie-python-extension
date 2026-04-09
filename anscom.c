@@ -1,18 +1,17 @@
-
 /*
  * anscom.c
- * "aditya narayan singh"
- * Version: v1.4.0 (Tree Structure & DFS Fix) flagship version
+ *
+ * Version: v1.5.0 (Tree Structure & DFS Fix) flagship version
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
  * update fix_2/21/2026: includes logic to ignore junk or corrupted files  (new version available on PyPl)
- * update: new  version released:-> 13 March 2026 : added features which can analyze directories at terabyte scale under seconds without any lag! via n.
- * v1.4.0: Removed export_excel (was crashing with openpyxl Workbook.read_only
+ * update: new  version released:-> 13 March 2026 : added features which can analyze directories at terabyte scale under seconds without any lag! via n.log(n).
+ * v1.5.0: Removed export_excel (was crashing with openpyxl Workbook.read_only
  *         exception). CSV export is sufficient and works perfectly.
+ *         Added: return_files, export_csv, largest_n, find_duplicates, regex_filter.
  *         All other features preserved: tree, JSON, CSV, duplicates,
  *         largest_n, return_files, regex_filter, ignore_junk, callbacks.
-
  */
 
 
@@ -1075,7 +1074,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     g_atomic_scanned = 0;
 
-    PySys_WriteStdout("\nAnscom Enterprise v1.4.0 (Threads: %d)\n", workers);
+    PySys_WriteStdout("\nAnscom Enterprise v1.5.0 (Threads: %d)\n", workers);
     PySys_WriteStdout("Target: %s\n", input_path);
 
 #ifdef _WIN32
@@ -1362,7 +1361,6 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         }
         if (PyErr_Occurred()) {
             Py_DECREF(res_dict);
-            /* Cleanup before early return */
             if (global_files) {
                 for (uint64_t i = 0; i < global_files_count; i++) free(global_files[i].path);
                 free(global_files);
@@ -1447,7 +1445,7 @@ static PyMethodDef AnscomMethods[] = {
 static struct PyModuleDef anscommodule = {
     PyModuleDef_HEAD_INIT,
     "anscom",
-    "Anscom Enterprise v1.4.0 — High-performance native C recursive file scanner.\n"
+    "Anscom Enterprise v1.5.0 — High-performance native C recursive file scanner.\n"
     "Multi-threaded, terabyte-scale. Features: tree, JSON, CSV, duplicates,\n"
     "largest-N, regex filter, extension whitelist, progress callback.",
     -1,
