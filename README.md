@@ -1,4 +1,4 @@
-# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension)
+# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension) on PyPI
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
 ![Current Release](https://img.shields.io/badge/release-1.5.0-blue)
