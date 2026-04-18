@@ -26,7 +26,7 @@
 <table>
 <tr>
 <td width="80px" valign="middle" align="center">
-<img src="https://avatars.githubusercontent.com/u/252811141?s=400&u=1ab402f781d9a27985950db4447723e90a1c3703&v=4" height="70" width="70" style="border-radius:12px;" alt="Anscom" />
+<img src="https://cdn3d.iconscout.com/3d/free/thumb/free-3d-mac-os-finder-3d-icon-png-download-2476743.png?f=webp" height="70" width="70" style="border-radius:12px;" alt="Anscom" />
 </td>
 <td valign="middle">
 
