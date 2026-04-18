@@ -30,6 +30,7 @@ Every large organization, research team, and development environment has storage
 </td>
 </tr>
 </table>
+
 ---
 
 **AnsCom NFIE** is a high-performance, native C99 extension for Python designed for systems engineers, developers, data analysts, and researchers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with constant-memory streaming traversal.
