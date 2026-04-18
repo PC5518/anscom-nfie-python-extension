@@ -16,7 +16,7 @@
   <img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="50" alt="Windows 11" title="Windows 11" />
   &nbsp;&nbsp;&nbsp;
   <!-- macOS Apple logo — PNG with white fill, visible on dark backgrounds -->
-  <img src="https://upload.wikimedia.org/wikipedia/commons/a/ab/Apple-logo.png" height="55" alt="macOS" title="macOS" />
+  <img src="https://www.nicepng.com/png/full/17-175110_mac-os-logo-png-transparent-logo-de-mac.png" height="55" alt="macOS" title="macOS" />
 </p>
 
 > Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
