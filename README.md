@@ -21,7 +21,20 @@
 </tr>
 </table>
 
-> Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
+---
+
+<table>
+<tr>
+<td width="80px" valign="middle" align="center">
+<img src="https://avatars.githubusercontent.com/u/252811141?s=400&u=1ab402f781d9a27985950db4447723e90a1c3703&v=4" height="70" width="70" style="border-radius:12px;" alt="Anscom" />
+</td>
+<td valign="middle">
+
+Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
+
+</td>
+</tr>
+</table>
 ---
 
 **AnsCom NFIE** is a high-performance, native C99 extension for Python designed for systems engineers, developers, data analysts, and researchers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with constant-memory streaming traversal.
