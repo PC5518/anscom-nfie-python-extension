@@ -2,7 +2,7 @@
 
 <table>
 <tr>
-<td valign="middle" width="75%">
+<td valign="middle" width="70%">
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
 ![Current Release](https://img.shields.io/badge/release-1.5.0-blue)
@@ -13,19 +13,16 @@
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/anscom?period=total&units=NONE&left_color=BLACK&right_color=BRIGHTGREEN&left_text=Downloaded+by)](https://pepy.tech/projects/anscom)
 
 </td>
-<td valign="middle" align="right" width="25%">
+<td valign="middle" align="center" width="30%">
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="80" alt="Linux" title="Linux" />
-&nbsp;
-<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="60" alt="Windows 11" title="Windows 11" />
-&nbsp;
-<img src="https://www.nicepng.com/png/full/17-175110_mac-os-logo-png-transparent-logo-de-mac.png" height="70" alt="macOS" title="macOS" />
+<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="65" alt="Linux" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="55" alt="Windows" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/2/21/MacOS_wordmark_%282017%29.svg" height="45" alt="macOS" />
 
 </td>
 </tr>
 </table>
 
-> Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.---
+> Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
+---
 
 **AnsCom NFIE** is a high-performance, native C99 extension for Python designed for systems engineers, developers, data analysts, and researchers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with constant-memory streaming traversal.
 Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, allowing it to process massive filesystems instantly without flooding your terminal or exhausting system memory.
