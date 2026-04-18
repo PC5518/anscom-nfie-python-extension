@@ -12,7 +12,9 @@
  *         Added: return_files, export_csv, largest_n, find_duplicates, regex_filter.
  *         All other features preserved: tree, JSON, CSV, duplicates,
  *         largest_n, return_files, regex_filter, ignore_junk, callbacks.
- ###attention to users/readers: many parts of the code is generated/implemented/edited by artificial intelligence by claude code
+ ###attention to users/readers: many parts of the code is generated/implemented/edited by artificial intelligence by claude code 
+
+ Kindly Issue a request if you think think this project can be maded bigger better and stronger than ever before.
  */
 
 
