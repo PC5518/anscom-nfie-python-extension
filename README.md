@@ -15,7 +15,7 @@
 </td>
 <td valign="middle" align="center" width="30%">
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="65" alt="Linux" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="55" alt="Windows" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/2/21/MacOS_wordmark_%282017%29.svg" height="45" alt="macOS" />
+<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="65" alt="Linux" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="55" alt="Windows" />&nbsp;&nbsp;<img src="https://avatars.githubusercontent.com/u/252811141?s=400&u=1ab402f781d9a27985950db4447723e90a1c3703&v=4" height="45" alt="macOS" />
 
 </td>
 </tr>
