@@ -14,7 +14,7 @@
  *         largest_n, return_files, regex_filter, ignore_junk, callbacks.
  ###attention to users/readers: many parts of the code is generated/implemented/edited by artificial intelligence by claude code 
 
- Kindly Issue a request if you think think this project can be maded bigger better and stronger than ever before.
+ Kindly request a Issue if you think think this project can be maded bigger better and stronger than ever before.
  */
 
 
