@@ -9,19 +9,6 @@
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/anscom?period=total&units=NONE&left_color=BLACK&right_color=BRIGHTGREEN&left_text=Downloaded+by)](https://pepy.tech/projects/anscom)
 
 <p align="left">
-  <img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="30" alt="Linux" title="Linux" />
-  &nbsp;&nbsp;
-  <img src="https://upload.wikimedia.org/wik# NFIE — Native Filesystem Intelligence Engine (Python C Extension) on PyPI
-
-[![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
-![Current Release](https://img.shields.io/badge/release-1.5.0-blue)
-![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
-[![Homepage](https://img.shields.io/badge/homepage-anscom-yellow)](https://anscomqs.github.io/anscom/)
-[![PyPI Downloads](https://static.pepy.tech/personalized-badge/anscom?period=total&units=NONE&left_color=BLACK&right_color=BRIGHTGREEN&left_text=Downloaded+by)](https://pepy.tech/projects/anscom)
-
-<p align="left">
   <!-- Linux / Tux -->
   <img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="55" alt="Linux" title="Linux" />
   &nbsp;&nbsp;&nbsp;
