@@ -1,5 +1,9 @@
 # NFIE — Native Filesystem Intelligence Engine (Python C Extension) on PyPI
 
+<table>
+<tr>
+<td valign="middle" width="75%">
+
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
 ![Current Release](https://img.shields.io/badge/release-1.5.0-blue)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
@@ -7,19 +11,21 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 [![Homepage](https://img.shields.io/badge/homepage-anscom-yellow)](https://anscomqs.github.io/anscom/)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/anscom?period=total&units=NONE&left_color=BLACK&right_color=BRIGHTGREEN&left_text=Downloaded+by)](https://pepy.tech/projects/anscom)
-<p align="left">
-  <!-- Linux / Tux -->
-  <img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="55" alt="Linux" title="Linux" />
-  &nbsp;&nbsp;&nbsp;
-  <!-- Windows 11 coloured logo -->
-  <img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="50" alt="Windows 11" title="Windows 11" />
-  &nbsp;&nbsp;&nbsp;
-  <!-- macOS Apple logo — PNG with white fill, visible on dark backgrounds -->
-  <img src="https://www.nicepng.com/png/full/17-175110_mac-os-logo-png-transparent-logo-de-mac.png" height="55" alt="macOS" title="macOS" />
-</p>
 
-> Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
----
+</td>
+<td valign="middle" align="right" width="25%">
+
+<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="80" alt="Linux" title="Linux" />
+&nbsp;
+<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="60" alt="Windows 11" title="Windows 11" />
+&nbsp;
+<img src="https://www.nicepng.com/png/full/17-175110_mac-os-logo-png-transparent-logo-de-mac.png" height="70" alt="macOS" title="macOS" />
+
+</td>
+</tr>
+</table>
+
+> Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.---
 
 **AnsCom NFIE** is a high-performance, native C99 extension for Python designed for systems engineers, developers, data analysts, and researchers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with constant-memory streaming traversal.
 Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, allowing it to process massive filesystems instantly without flooding your terminal or exhausting system memory.
