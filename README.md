@@ -7,7 +7,6 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 [![Homepage](https://img.shields.io/badge/homepage-anscom-yellow)](https://anscomqs.github.io/anscom/)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/anscom?period=total&units=NONE&left_color=BLACK&right_color=BRIGHTGREEN&left_text=Downloaded+by)](https://pepy.tech/projects/anscom)
-
 <p align="left">
   <!-- Linux / Tux -->
   <img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="55" alt="Linux" title="Linux" />
