@@ -13,13 +13,20 @@
 
 </td>
 <td valign="middle" align="center" width="30%">
+<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="65" alt="Linux" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="55" alt="Windows" />&nbsp;&nbsp;<img src="https://cdn3d.iconscout.com/3d/free/thumb/free-3d-mac-os-finder-3d-icon-png-download-2476743.png?f=webp" height="45" alt="macOS" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/PyPI_logo.svg/1280px-PyPI_logo.svg.png" height="45" alt="PyPI" />
+</td>
+</tr>
+</table>
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/3/35/Tux.svg" height="65" alt="Linux" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/8/87/Windows_logo_-_2021.svg" height="55" alt="Windows" />&nbsp;&nbsp;<img src="https://cdn3d.iconscout.com/3d/free/thumb/free-3d-mac-os-finder-3d-icon-png-download-2476743.png?f=webp" height="45" alt="macOS" />
+---
 
-<!-- ADD THIS LINE BELOW 👇 -->
-<br><br>
-<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/PyPI_logo.svg/1280px-PyPI_logo.svg.png" height="40" alt="PyPI" />
-
+<table>
+<tr>
+<td width="80px" valign="middle" align="center">
+<img src="https://avatars.githubusercontent.com/u/252811141?s=400&u=1ab402f781d9a27985950db4447723e90a1c3703&v=4" height="70" width="70" style="border-radius:12px;" alt="Anscom" />
+</td>
+<td valign="middle">
+Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
 </td>
 </tr>
 </table>
