@@ -15,6 +15,7 @@
  ###attention to users/readers: many parts of the code is generated/implemented/edited by artificial intelligence by claude code 
 
  Kindly request a Issue if you think think this project can be maded bigger better and stronger than ever before.
+ compitable with linux, windows, macos (Unix based already, in the same way like Ubuntu)
  */
 
 
