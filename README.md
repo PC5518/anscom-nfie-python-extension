@@ -707,7 +707,8 @@ anscom.scan(
 | 0.4.0 | Jan 15, 2026 | Release of the basic version with the concept of anscom |
 
 ---
-<img width="877" height="563" alt="image" src="https://github.com/user-attachments/assets/fd555406-9495-454c-b555-be28b49decc6" />
+<img width="1073" height="799" alt="image" src="https://github.com/user-attachments/assets/98424cad-b7a5-40aa-9e5d-d5abc19498a5" />
+
 
 ---
 
