@@ -161,7 +161,7 @@ static const ExtDef EXTENSION_TABLE[] = {
     {"wsf", CAT_CODE}, {"xcodeproj", CAT_CODE}, {"xls", CAT_DOCUMENT}, {"xlsm", CAT_DOCUMENT},
     {"xlsx", CAT_DOCUMENT}, {"xml", CAT_CODE}, {"yaml", CAT_CODE}, {"yml", CAT_CODE},
     {"zip", CAT_ARCHIVE},
-};
+}; // all the categories getting divided into different form. this will be later reflected on the terminal.
 static const int EXTENSION_COUNT = sizeof(EXTENSION_TABLE) / sizeof(ExtDef);
 
 #define HASH_SIZE 512
