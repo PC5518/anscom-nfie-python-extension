@@ -17,6 +17,7 @@
 
  Kindly request a Issue if you think think this project can be maded bigger better and stronger than ever before.
  compitable with linux, windows, macos (Unix based already, in the same way like Ubuntu)
+ upcoming updates: will fix and add the famous pynb file in the domain.
  */
 
 
