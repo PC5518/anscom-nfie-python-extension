@@ -22,7 +22,6 @@
 
 
 #define PY_SSIZE_T_CLEAN
-#include <iostream>
 #include <Python.h>
 #include <stdio.h>
 #include <stdlib.h>
