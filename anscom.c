@@ -1381,7 +1381,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         }
     }
 
-    /* Cleanup */
+    /* CLEANUP IS VERY NESSESARY HERE TO FIX THE 2 ISSUE WHICH IS OCCURING FROM THE PAST 2 MONTHS*/ 
     if (global_files) {
         for (uint64_t i = 0; i < global_files_count; i++) free(global_files[i].path);
         free(global_files);
