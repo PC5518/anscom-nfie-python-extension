@@ -1,4 +1,4 @@
-# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension) on PyPI
+# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension) on PyPI (update coming soon! by 21st july)
 <table>
 <tr>
 <td valign="middle" width="70%">
