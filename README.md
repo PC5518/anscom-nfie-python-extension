@@ -4,7 +4,7 @@
 <td valign="middle" width="70%">
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
-![Current Release](https://img.shields.io/badge/release-1.5.0-blue)
+![Current Release](https://img.shields.io/badge/release-1.5.1-blue)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -61,6 +61,7 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 * **Top-N Largest Files** *(new in v1.5.0)*: `largest_n=N` reports the largest files via per-thread min-heap — O(log N) per file, no extra pass.
 * **Duplicate Detection** *(new in v1.5.0)*: Two-phase size-bucket + CRC32 fingerprinting — zero I/O for unique-size files.
 * **Regex Path Filter** *(new in v1.5.0)*: `regex_filter` restricts the scan to paths matching a pattern. POSIX `regexec` on Linux/macOS for zero GIL overhead.
+* **Current Directory Helper** *(new in v1.5.1)*: `anscom.pwd()` returns the working directory as an absolute string (the Unix `pwd`), `anscom.scan()` with no path scans it, and every result dict now includes `scanned_path` — the absolute path that was actually walked.
 
 ---
 
@@ -73,6 +74,8 @@ pip install anscom
 ```
 
 > **Note for Windows users:** Compiling from source requires the "Desktop development with C++" workload from Visual Studio Build Tools.
+
+> **Native build (optional, Linux/macOS):** the default source build is portable. To compile with `-march=native` tuned to your CPU (best on a machine you both build and run on), set `ANSCOM_NATIVE=1` before installing.
 
 ### Verify installation
 
@@ -90,6 +93,15 @@ print(f"Anscom is working. Files found: {result['total_files']}")
 ```python
 import anscom
 anscom.scan(".")
+```
+
+### Current Directory (pwd) *(new in v1.5.1)*
+```python
+import anscom
+
+print(anscom.pwd())              # absolute path of the current working directory
+result = anscom.scan()           # no argument → scans the current directory
+print(result["scanned_path"])    # absolute path that was actually walked
 ```
 
 ### Visual Tree Mode
@@ -256,11 +268,11 @@ Errors   : 0 (permission denied / inaccessible)
 
 ## API Reference
 
-### `anscom.scan(path, max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, return_files=False, export_csv=None, largest_n=0, find_duplicates=False, regex_filter=None)`
+### `anscom.scan(path='.', max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, return_files=False, export_csv=None, largest_n=0, find_duplicates=False, regex_filter=None)`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `path` | `str` | Required | Target directory. Relative (`.`) or absolute (`C:\Data`). Empty string treated as `.`. |
+| `path` | `str` | `'.'` (CWD) | Target directory. Optional — omit it, or pass `""` / `None`, to scan the current working directory (the Unix `pwd`). Relative (`.`) or absolute (`C:\Data`). |
 | `max_depth` | `int` | `6` | Recursion depth limit. Clamped to `[0, 64]`. |
 | `show_tree` | `bool` | `False` | If `True`, prints a DFS-ordered directory tree to stdout. Forces `workers=1`. |
 | `workers` | `int` | `0` | Thread count. `0` = read from OS (core count). |
@@ -284,11 +296,22 @@ Errors   : 0 (permission denied / inaccessible)
 | `total_files` | `int` | ✓ | Files that passed all filters and were categorized |
 | `scan_errors` | `int` | ✓ | Paths that could not be opened |
 | `duration_seconds` | `float` | ✓ | Wall-clock elapsed time |
+| `scanned_path` *(new in v1.5.1)* | `str` | ✓ | Absolute path that was actually walked (resolved from `path`) |
 | `categories` | `dict[str, int]` | ✓ | All 9 categories always present |
 | `extensions` | `dict[str, int]` | ✓ | Only extensions with count > 0 |
 | `files` | `list[dict]` | `return_files=True` | Per-file records: `path`, `size`, `ext`, `category`, `mtime` |
 | `largest_files` | `list[dict]` | `largest_n > 0` | Top-N files by size: `path`, `size` |
 | `duplicates` | `list[list[str]]` | `find_duplicates=True` | Groups of paths sharing identical content (size + CRC32) |
+
+### `anscom.pwd()` *(new in v1.5.1)*
+
+Returns the current working directory as an absolute path string — the Unix `pwd`, as a value (never printed). Takes no arguments. Raises `OSError` if the working directory cannot be read.
+
+```python
+import anscom
+root = anscom.pwd()        # e.g. '/home/user/project'
+anscom.scan(root)          # feed it straight back in
+```
 
 ---
 
@@ -310,6 +333,7 @@ Example output (`results.json`):
     "total_files": 4262,
     "scan_errors": 0,
     "duration_seconds": 1.0315,
+    "scanned_path": "/home/user/project",
     "categories": {
         "Code/Source": 1941,
         "Documents": 585,
@@ -392,6 +416,36 @@ anscom.scan(
 ```
 
 One scan pass. Multiple output files. Full in-memory results. No re-scanning.
+
+---
+
+## v1.5.1 Highlights
+
+### `anscom.pwd()` and no-argument `scan()`
+
+Both return values — nothing is printed, so results stay composable.
+
+```python
+import anscom
+
+# pwd() — the current working directory as an absolute string
+root = anscom.pwd()               # e.g. '/home/user/project'
+
+# scan() with no path scans the current working directory
+result = anscom.scan(silent=True)
+print(result["scanned_path"])     # → '/home/user/project'
+```
+
+### `scanned_path` — Always-Present Resolved Root
+
+Whatever `path` you pass (or omit), the result dict always includes `scanned_path`: the absolute path that was actually walked, resolved via `realpath` on Linux/macOS and `_fullpath` on Windows. If a path cannot be resolved (missing or unreadable), it falls back to the raw input so the key is always present.
+
+```python
+r = anscom.scan("../logs", silent=True)
+print(r["scanned_path"])          # resolved absolute path, not '../logs'
+```
+
+This release also fixes Python reference leaks in the result-dict construction and no longer pre-allocates the per-thread file buffer on count-only scans, so a plain `anscom.scan()` now does zero heap work on the hot path.
 
 ---
 
@@ -523,7 +577,7 @@ After scanning, AnsCom prints:
 - Hardware atomic progress counter (`__sync_fetch_and_add` / `InterlockedExchangeAdd64`)
 - Hybrid parallel/inline dispatch — queue at shallow depths, inline recursion at depth
 - Per-thread min-heap for `largest_n` — O(log N) per file, lock-free
-- Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans
+- Per-thread `FileInfo` array pre-allocated at 65,536 entries **only when a file-collecting feature is enabled** (`return_files` / `export_csv` / `find_duplicates`) — plain count-only scans do zero heap work on the hot path
 - POSIX `regexec` for `regex_filter` on Linux/macOS — fully GIL-free regex matching inside worker threads
 
 ---
@@ -699,6 +753,7 @@ anscom.scan(
 
 | Version | Date | Notes |
 |---|---|---|
+| **1.5.1** | 28 July 2026 | **Ergonomics & correctness.** Added `pwd()` (returns the current working directory as an absolute string — the Unix `pwd`, as a value), no-argument `scan()` (defaults to the current working directory), and `scanned_path` in every result dict (absolute path actually walked). Fixed Python reference leaks in result-dict construction (`PyDict_SetItemString` / `PyList_Append` do not steal references). The per-thread file buffer is no longer pre-allocated on count-only scans — a plain `anscom.scan()` now performs zero heap work on the hot path. Fully backward-compatible: every v1.5.0 script runs unchanged. |
 | **1.5.0** | 09 April 2026 | **Major feature release.** Added `return_files` (per-file list in result dict), `export_csv` (UTF-8 CSV inventory, RFC 4180-compliant, zero deps), `largest_n` (top-N largest files via per-thread min-heap, O(log N) per file), `find_duplicates` (two-phase size + CRC32 detection, zero I/O for unique-size files), `regex_filter` (POSIX `regexec` on Linux/macOS for GIL-free path filtering, Python `re` fallback on Windows). Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans. All new features are strictly opt-in: default `anscom.scan(".")` runs the identical hot path as v1.3.0. Removed `export_excel` (was crashing on Windows due to `openpyxl` `Workbook.read_only` exception); use `export_csv` + `pandas.to_excel()` instead. |
 | **1.3.0** | 15 March 2026 | **Export release.** Added `export_json` (native, zero dependencies), `export_tree` (DFS tree to `.txt`), and `export_excel` (structured `.xlsx` with openpyxl). MSVC Windows compiler compatibility fix for `uint64_t` / `stdint.h`. |
 | **1.0.0** | 13 March 2026 | **Major release.** Terabyte-scale filesystem scanning. Multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks, slab path allocator, extension whitelisting, silent mode, min_size filter, and live callback interface. |
