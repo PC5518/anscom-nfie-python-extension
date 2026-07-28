@@ -1,8 +1,7 @@
 /*
  * anscom.c
- * aditya narayan singh.
- * Kolkata
- * Version: v1.5.0 (Tree Structure & DFS Fix) flagship version
+ *
+ * Version: v1.5.1 (Tree Structure & DFS Fix) flagship version
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
@@ -13,11 +12,11 @@
  *         Added: return_files, export_csv, largest_n, find_duplicates, regex_filter.
  *         All other features preserved: tree, JSON, CSV, duplicates,
  *         largest_n, return_files, regex_filter, ignore_junk, callbacks.
- ###attention to users/readers: many parts of the code is generated/implemented/edited by artificial intelligence by claude code 
-
- Kindly request a Issue if you think think this project can be maded bigger better and stronger than ever before.
- compitable with linux, windows, macos (Unix based already, in the same way like Ubuntu)
- upcoming updates: will fix and add the famous pynb file in the domain.
+ * v1.5.1: Added pwd() and no-argument scan() (defaults to the current working
+ *         directory); the result dict now includes 'scanned_path'. Fixed Python
+ *         reference leaks in result-dict construction (PyDict/PyList do not
+ *         steal references). The per-file array is no longer pre-allocated for
+ *         count-only scans, so the plain hot path performs zero heap work.
  */
 
 
@@ -35,6 +34,7 @@
    ------------------------------------------------------------------------- */
 #ifdef _WIN32
     #include <windows.h>
+    #include <direct.h>
     #define PATH_SEP '\\'
     #define PATH_MAX 4096
     typedef HANDLE os_thread_t;
@@ -161,7 +161,7 @@ static const ExtDef EXTENSION_TABLE[] = {
     {"wsf", CAT_CODE}, {"xcodeproj", CAT_CODE}, {"xls", CAT_DOCUMENT}, {"xlsm", CAT_DOCUMENT},
     {"xlsx", CAT_DOCUMENT}, {"xml", CAT_CODE}, {"yaml", CAT_CODE}, {"yml", CAT_CODE},
     {"zip", CAT_ARCHIVE},
-}; // all the categories getting divided into different form. this will be later reflected on the terminal.
+};
 static const int EXTENSION_COUNT = sizeof(EXTENSION_TABLE) / sizeof(ExtDef);
 
 #define HASH_SIZE 512
@@ -912,11 +912,53 @@ static int cmp_dupcand_crc(const void *a, const void *b) {
 }
 
 /* -------------------------------------------------------------------------
+   Reference-safe container helpers
+   PyDict_SetItemString and PyList_Append do NOT steal a reference to the
+   value, so a freshly created PyLong_/PyUnicode_/PyFloat_ passed inline at the
+   call site must be released by the caller or it leaks. These wrappers add the
+   value to the container and then drop the local reference, so every call site
+   below stays a one-liner while remaining leak-free.
+   ------------------------------------------------------------------------- */
+
+static int dict_set_new(PyObject *dict, const char *key, PyObject *val) {
+    if (val == NULL) return -1;
+    int rc = PyDict_SetItemString(dict, key, val);
+    Py_DECREF(val);
+    return rc;
+}
+
+static int list_append_new(PyObject *list, PyObject *val) {
+    if (val == NULL) return -1;
+    int rc = PyList_Append(list, val);
+    Py_DECREF(val);
+    return rc;
+}
+
+/* -------------------------------------------------------------------------
+   Python Interface — anscom.pwd()
+   Returns the current working directory as an absolute path string, mirroring
+   the Unix `pwd` command. It returns a value and never prints, so the result
+   stays composable: `root = anscom.pwd(); anscom.scan(root)`.
+   ------------------------------------------------------------------------- */
+
+static PyObject* anscom_pwd(PyObject *self, PyObject *args) {
+    char buf[PATH_MAX];
+#ifdef _WIN32
+    if (_getcwd(buf, PATH_MAX) == NULL)
+        return PyErr_SetFromErrno(PyExc_OSError);
+#else
+    if (getcwd(buf, sizeof(buf)) == NULL)
+        return PyErr_SetFromErrno(PyExc_OSError);
+#endif
+    return PyUnicode_FromString(buf);
+}
+
+/* -------------------------------------------------------------------------
    Python Interface — anscom.scan()
    ------------------------------------------------------------------------- */
 
 static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
-    const char *input_path;
+    const char *input_path = NULL;
     int max_depth = 6;
     int show_tree = 0;
     int workers = 0;
@@ -948,7 +990,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         "return_files", "export_csv", "largest_n", "find_duplicates", "regex_filter", NULL
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, keywds, "s|ipiKOOppzzpzipz", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, keywds, "|zipiKOOppzzpzipz", kwlist,
                                      &input_path, &max_depth, &show_tree, &workers,
                                      &min_size, &extensions_list, &callback, &silent, &ignore_junk,
                                      &export_json, &export_tree,
@@ -957,7 +999,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         return NULL;
     }
 
-    if (input_path[0] == '\0') input_path = ".";
+    if (input_path == NULL || input_path[0] == '\0') input_path = ".";
     if (max_depth < 0) max_depth = 0;
     if (max_depth > 64) max_depth = 64;
 
@@ -1065,11 +1107,20 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     os_thread_t *thread_handles = calloc(workers, sizeof(os_thread_t));
     os_thread_t progress_thread;
 
+    /* The per-file array is only needed when a feature actually consumes it.
+       A plain count-only scan keeps it NULL and pays no heap cost — the array
+       grows on demand inside identify_and_count if a feature is enabled. */
+    int collect_files = (return_files || export_csv != NULL || find_duplicates);
     for (int i = 0; i < workers; i++) {
         threads[i].config = &config;
         threads[i].queue  = queue;
-        threads[i].files.capacity = FILEARRAY_INIT_CAP;
-        threads[i].files.data = malloc(FILEARRAY_INIT_CAP * sizeof(FileInfo));
+        if (collect_files) {
+            threads[i].files.capacity = FILEARRAY_INIT_CAP;
+            threads[i].files.data = malloc(FILEARRAY_INIT_CAP * sizeof(FileInfo));
+        } else {
+            threads[i].files.capacity = 0;
+            threads[i].files.data = NULL;
+        }
         threads[i].files.size = 0;
         if (largest_n > 0) {
             threads[i].top_files.capacity = largest_n;
@@ -1080,7 +1131,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     g_atomic_scanned = 0;
 
-    PySys_WriteStdout("\nAnscom Enterprise v1.5.0 (Threads: %d)\n", workers);
+    PySys_WriteStdout("\nAnscom Enterprise v1.5.1 (Threads: %d)\n", workers);
     PySys_WriteStdout("Target: %s\n", input_path);
 
 #ifdef _WIN32
@@ -1241,12 +1292,9 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
                         if (cend - cstart > 1) {
                             PyObject *group = PyList_New(0);
                             for (size_t k = cstart; k < cend; k++) {
-                                PyObject *pystr = PyUnicode_FromString(cands[k].path);
-                                PyList_Append(group, pystr);
-                                Py_DECREF(pystr);
+                                list_append_new(group, PyUnicode_FromString(cands[k].path));
                             }
-                            PyList_Append(duplicates_list, group);
-                            Py_DECREF(group);
+                            list_append_new(duplicates_list, group);
                             final_stats.duplicates_groups++;
                         }
                         cstart = cend;
@@ -1284,22 +1332,41 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     /* Build result dict */
     PyObject *res_dict = PyDict_New();
-    PyDict_SetItemString(res_dict, "total_files",      PyLong_FromUnsignedLongLong(final_stats.total_files));
-    PyDict_SetItemString(res_dict, "scan_errors",      PyLong_FromUnsignedLongLong(final_stats.scan_errors));
-    PyDict_SetItemString(res_dict, "duration_seconds", PyFloat_FromDouble(elapsed));
+    dict_set_new(res_dict, "total_files",      PyLong_FromUnsignedLongLong(final_stats.total_files));
+    dict_set_new(res_dict, "scan_errors",      PyLong_FromUnsignedLongLong(final_stats.scan_errors));
+    dict_set_new(res_dict, "duration_seconds", PyFloat_FromDouble(elapsed));
+
+    /* Resolve the absolute path that was actually walked so callers always know
+       the concrete root — especially for anscom.scan() with no argument, which
+       defaults to the current working directory. Returned as a value, never
+       printed. If the path can't be resolved (missing/unreadable) the raw input
+       is used as a safe fallback. */
+    {
+        char resolved_path[PATH_MAX];
+#ifdef _WIN32
+        if (_fullpath(resolved_path, input_path, PATH_MAX) == NULL)
+#else
+        if (realpath(input_path, resolved_path) == NULL)
+#endif
+        {
+            strncpy(resolved_path, input_path, PATH_MAX - 1);
+            resolved_path[PATH_MAX - 1] = '\0';
+        }
+        dict_set_new(res_dict, "scanned_path", PyUnicode_FromString(resolved_path));
+    }
 
     PyObject *cat_dict = PyDict_New();
     for (int i = 0; i < CAT_COUNT; i++)
-        PyDict_SetItemString(cat_dict, CAT_NAMES[i],
-                             PyLong_FromUnsignedLongLong(final_stats.cat_counts[i]));
+        dict_set_new(cat_dict, CAT_NAMES[i],
+                     PyLong_FromUnsignedLongLong(final_stats.cat_counts[i]));
     PyDict_SetItemString(res_dict, "categories", cat_dict);
     Py_DECREF(cat_dict);
 
     PyObject *ext_dict = PyDict_New();
     for (int i = 0; i < EXTENSION_COUNT; i++) {
         if (final_stats.ext_counts[i] > 0)
-            PyDict_SetItemString(ext_dict, EXTENSION_TABLE[i].ext,
-                                 PyLong_FromUnsignedLongLong(final_stats.ext_counts[i]));
+            dict_set_new(ext_dict, EXTENSION_TABLE[i].ext,
+                         PyLong_FromUnsignedLongLong(final_stats.ext_counts[i]));
     }
     PyDict_SetItemString(res_dict, "extensions", ext_dict);
     Py_DECREF(ext_dict);
@@ -1308,13 +1375,12 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         PyObject *files_list = PyList_New(0);
         for (uint64_t i = 0; i < global_files_count; i++) {
             PyObject *file_dict = PyDict_New();
-            PyDict_SetItemString(file_dict, "path",     PyUnicode_FromString(global_files[i].path));
-            PyDict_SetItemString(file_dict, "size",     PyLong_FromUnsignedLongLong(global_files[i].size));
-            PyDict_SetItemString(file_dict, "ext",      PyUnicode_FromString(global_files[i].ext));
-            PyDict_SetItemString(file_dict, "category", PyUnicode_FromString(CAT_NAMES[global_files[i].category]));
-            PyDict_SetItemString(file_dict, "mtime",    PyLong_FromUnsignedLongLong(global_files[i].mtime));
-            PyList_Append(files_list, file_dict);
-            Py_DECREF(file_dict);
+            dict_set_new(file_dict, "path",     PyUnicode_FromString(global_files[i].path));
+            dict_set_new(file_dict, "size",     PyLong_FromUnsignedLongLong(global_files[i].size));
+            dict_set_new(file_dict, "ext",      PyUnicode_FromString(global_files[i].ext));
+            dict_set_new(file_dict, "category", PyUnicode_FromString(CAT_NAMES[global_files[i].category]));
+            dict_set_new(file_dict, "mtime",    PyLong_FromUnsignedLongLong(global_files[i].mtime));
+            list_append_new(files_list, file_dict);
         }
         PyDict_SetItemString(res_dict, "files", files_list);
         Py_DECREF(files_list);
@@ -1324,10 +1390,9 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         PyObject *top_list = PyList_New(0);
         for (int i = 0; i < top_count; i++) {
             PyObject *file_dict = PyDict_New();
-            PyDict_SetItemString(file_dict, "path", PyUnicode_FromString(sorted_top[i].path));
-            PyDict_SetItemString(file_dict, "size", PyLong_FromUnsignedLongLong(sorted_top[i].size));
-            PyList_Append(top_list, file_dict);
-            Py_DECREF(file_dict);
+            dict_set_new(file_dict, "path", PyUnicode_FromString(sorted_top[i].path));
+            dict_set_new(file_dict, "size", PyLong_FromUnsignedLongLong(sorted_top[i].size));
+            list_append_new(top_list, file_dict);
         }
         PyDict_SetItemString(res_dict, "largest_files", top_list);
         Py_DECREF(top_list);
@@ -1381,7 +1446,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         }
     }
 
-    /* CLEANUP IS VERY NESSESARY HERE TO FIX THE 2 ISSUE WHICH IS OCCURING FROM THE PAST 2 MONTHS*/ 
+    /* Cleanup */
     if (global_files) {
         for (uint64_t i = 0; i < global_files_count; i++) free(global_files[i].path);
         free(global_files);
@@ -1418,15 +1483,21 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
    ------------------------------------------------------------------------- */
 
 static PyMethodDef AnscomMethods[] = {
+    {"pwd", (PyCFunction)anscom_pwd, METH_NOARGS,
+     "pwd() -> str\n\n"
+     "Return the current working directory as an absolute path string,\n"
+     "mirroring the Unix `pwd` command. Returns a value (never prints), so it\n"
+     "stays composable: `root = anscom.pwd(); anscom.scan(root)`."},
     {"scan", (PyCFunction)(void(*)(void))anscom_scan, METH_VARARGS | METH_KEYWORDS,
-     "scan(path, max_depth=6, show_tree=False, workers=0, min_size=0,\n"
+     "scan(path='.', max_depth=6, show_tree=False, workers=0, min_size=0,\n"
      "     extensions=None, callback=None, silent=False, ignore_junk=False,\n"
      "     export_json=None, export_tree=None,\n"
      "     return_files=False, export_csv=None, largest_n=0,\n"
      "     find_duplicates=False, regex_filter=None) -> dict\n\n"
      "High-performance multi-threaded recursive file scanner.\n\n"
      "Parameters\n----------\n"
-     "path         : str   — root directory to scan\n"
+     "path         : str   — root directory to scan (optional; defaults to the\n"
+     "                       current working directory, like Unix pwd)\n"
      "max_depth    : int   — maximum recursion depth (default 6, max 64)\n"
      "show_tree    : bool  — print directory tree to stdout (forces workers=1)\n"
      "workers      : int   — thread count (0 = auto-detect CPU count)\n"
@@ -1443,7 +1514,7 @@ static PyMethodDef AnscomMethods[] = {
      "find_duplicates: bool — detect duplicate files (CRC32 after size match)\n"
      "regex_filter : str   — only count files whose path matches this pattern\n\n"
      "Returns\n-------\n"
-     "dict with keys: total_files, scan_errors, duration_seconds,\n"
+     "dict with keys: total_files, scan_errors, duration_seconds, scanned_path,\n"
      "                categories, extensions, [files], [largest_files], [duplicates]"},
     {NULL, NULL, 0, NULL}
 };
@@ -1451,7 +1522,7 @@ static PyMethodDef AnscomMethods[] = {
 static struct PyModuleDef anscommodule = {
     PyModuleDef_HEAD_INIT,
     "anscom",
-    "Anscom Enterprise v1.5.0 — High-performance native C recursive file scanner.\n"
+    "Anscom Enterprise v1.5.1 — High-performance native C recursive file scanner.\n"
     "Multi-threaded, terabyte-scale. Features: tree, JSON, CSV, duplicates,\n"
     "largest-N, regex filter, extension whitelist, progress callback.",
     -1,
