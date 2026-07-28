@@ -1,7 +1,7 @@
 /*
  * anscom.c
  *
- * Version: v1.5.1 (Tree Structure & DFS Fix) flagship version
+ * Version: v1.5.1 (Tree Structure & DFS Fix)
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
