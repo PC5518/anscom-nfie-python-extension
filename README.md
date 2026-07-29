@@ -4,7 +4,7 @@
 <td valign="middle" width="70%">
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
-![Current Release](https://img.shields.io/badge/release-1.5.1-blue)
+![Current Release](https://img.shields.io/badge/release-1.5.2-blue)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -62,6 +62,7 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 * **Duplicate Detection** *(new in v1.5.0)*: Two-phase size-bucket + CRC32 fingerprinting — zero I/O for unique-size files.
 * **Regex Path Filter** *(new in v1.5.0)*: `regex_filter` restricts the scan to paths matching a pattern. POSIX `regexec` on Linux/macOS for zero GIL overhead.
 * **Current Directory Helper** *(new in v1.5.1)*: `anscom.pwd()` returns the working directory as an absolute string (the Unix `pwd`), `anscom.scan()` with no path scans it, and every result dict now includes `scanned_path` — the absolute path that was actually walked.
+* **Mascot** *(new in v1.5.2)*: `anscom.about()` prints **Chuhi**, the anscom mascot (the house mouse of a Kolkata apartment), as ASCII art with a short credit line.
 
 ---
 
@@ -313,6 +314,15 @@ root = anscom.pwd()        # e.g. '/home/user/project'
 anscom.scan(root)          # feed it straight back in
 ```
 
+### `anscom.about()` *(new in v1.5.2)*
+
+Prints the anscom mascot — **Chuhi**, the house mouse of a Kolkata apartment — as ASCII art, followed by a short credit line. Takes no arguments and returns `None`. The art is about 82 columns wide, so a reasonably wide terminal shows it best.
+
+```python
+import anscom
+anscom.about()             # meet Chuhi
+```
+
 ---
 
 ## Export Features
@@ -416,6 +426,21 @@ anscom.scan(
 ```
 
 One scan pass. Multiple output files. Full in-memory results. No re-scanning.
+
+---
+
+## v1.5.2 Highlights
+
+### `anscom.about()` — meet Chuhi
+
+A small, fully backward-compatible release: it adds a mascot and nothing else. No scan behavior, call signature, or output format changed.
+
+```python
+import anscom
+anscom.about()             # prints Chuhi + a short credit line, returns None
+```
+
+**Chuhi** is the anscom mascot, named after the house mouse of a Kolkata apartment. The art is original and embedded byte-for-byte in the C extension.
 
 ---
 
@@ -753,6 +778,7 @@ anscom.scan(
 
 | Version | Date | Notes |
 |---|---|---|
+| **1.5.2** | 29 July 2026 | **Mascot.** Added `about()` — prints **Chuhi**, the anscom mascot (the house mouse of a Kolkata apartment), as original ASCII art with a short credit line, then returns `None`. Fully backward-compatible: no scan behavior, call signature, or output format changed. |
 | **1.5.1** | 28 July 2026 | **Ergonomics & correctness.** Added `pwd()` (returns the current working directory as an absolute string — the Unix `pwd`, as a value), no-argument `scan()` (defaults to the current working directory), and `scanned_path` in every result dict (absolute path actually walked). Fixed Python reference leaks in result-dict construction (`PyDict_SetItemString` / `PyList_Append` do not steal references). The per-thread file buffer is no longer pre-allocated on count-only scans — a plain `anscom.scan()` now performs zero heap work on the hot path. Fully backward-compatible: every v1.5.0 script runs unchanged. |
 | **1.5.0** | 09 April 2026 | **Major feature release.** Added `return_files` (per-file list in result dict), `export_csv` (UTF-8 CSV inventory, RFC 4180-compliant, zero deps), `largest_n` (top-N largest files via per-thread min-heap, O(log N) per file), `find_duplicates` (two-phase size + CRC32 detection, zero I/O for unique-size files), `regex_filter` (POSIX `regexec` on Linux/macOS for GIL-free path filtering, Python `re` fallback on Windows). Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans. All new features are strictly opt-in: default `anscom.scan(".")` runs the identical hot path as v1.3.0. Removed `export_excel` (was crashing on Windows due to `openpyxl` `Workbook.read_only` exception); use `export_csv` + `pandas.to_excel()` instead. |
 | **1.3.0** | 15 March 2026 | **Export release.** Added `export_json` (native, zero dependencies), `export_tree` (DFS tree to `.txt`), and `export_excel` (structured `.xlsx` with openpyxl). MSVC Windows compiler compatibility fix for `uint64_t` / `stdint.h`. |
