@@ -19,6 +19,7 @@
  *         count-only scans, so the plain hot path performs zero heap work.
  * v1.5.2: Added about() - prints the anscom mascot "Chuhi" (the house mouse of
  *         a Kolkata apartment) and credits. No other behavior changed.
+ *          purely an addition based update  !
  */
 
 
