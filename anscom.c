@@ -1,7 +1,7 @@
 /*
  * anscom.c
  *
- * Version: v1.5.1 (Tree Structure & DFS Fix)
+ * Version: v1.5.2 (Tree Structure & DFS Fix) flagship version
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
@@ -17,6 +17,8 @@
  *         reference leaks in result-dict construction (PyDict/PyList do not
  *         steal references). The per-file array is no longer pre-allocated for
  *         count-only scans, so the plain hot path performs zero heap work.
+ * v1.5.2: Added about() - prints the anscom mascot "Chuhi" (the house mouse of
+ *         a Kolkata apartment) and credits. No other behavior changed.
  */
 
 
@@ -1131,7 +1133,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     g_atomic_scanned = 0;
 
-    PySys_WriteStdout("\nAnscom Enterprise v1.5.1 (Threads: %d)\n", workers);
+    PySys_WriteStdout("\nAnscom Enterprise v1.5.2 (Threads: %d)\n", workers);
     PySys_WriteStdout("Target: %s\n", input_path);
 
 #ifdef _WIN32
@@ -1482,12 +1484,75 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
    Module Registration
    ------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------
+   Chuhi - the anscom mascot (the house mouse of a Kolkata apartment).
+   Original ASCII art by Aditya Narayan Singh, embedded byte-for-byte.
+   ------------------------------------------------------------------------- */
+
+static const char *CHUHI_ART[] = {
+    "                                       +#",
+    "                                      *---+                     ()",
+    "                                      -----+                  =:+=+%",
+    "                                      #--------.%.+@@....   #-==----+",
+    "             *                        :----%####%#%%%#%%%%--+=------@",
+    "              *                       .@###%%%%%%%%%%%%%---==-------@-",
+    "               *                  :+##%%%#%%%%%%%%%%%%%----=-------+#%%@=",
+    "       ^ *      .=             *###%%%%%%%%%%%%%%%%%%%#---+==-----=%%%%%%%@.",
+    "           .*     @          .#%%%%%%%%%%%%%%%%%%%%%%%%*====-----%%%%%%%%%%%%%*",
+    "              +.   @       @#%%%%%%%% 0   %%%%%%%%%%%%%%%%-==--%%%%%%%%%%%%%%%%%",
+    "                *.  @   %#%%%%%%%%#@  0  @%%%%%%%%%%%%%%%%%---%%%%%%%%%%%%%%%%%%",
+    "                  @  @##%%%%%%%%%%%#@@@@@#%%%%%%%%%%%%#%%%%%#%%%%%%%%%%%%%%%%%:",
+    "                   %#%%%%%%%%%%%%%%%%%%%%%%%%%%%%#%%%%%%%%%%%%%%%%%%%%%%%%%%%%",
+    "                :##%%%%%%%%%%%%%%%%%%%%%%%%%%%%#%%%%%#%%%%%%%%%%%%%%%%%%%%%%*",
+    "                ----+%%%%%%%%%%%%%%#%%%%%%%%#%%%%%%%%%%%##%%%@%%%%%%%#%##%%:",
+    "        @=@=^==()=+=%%%%%%%%%%%%%%%%@@%%%%%%%#%%%%%%%%%%%%%%%%%%%#%%%%%#%=",
+    "     .@:      . %%%%%%%%%%%%@%%%%%%%%%%%@%%%%%%%%%%%%%%%%%%%%%%%%###%%%",
+    "   #.        ()    %%%%      %%%%%@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+",
+    " #           %.        %%%%%@%%@%%%%%@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",
+    "           .#              %#%@%%%%%%%%%%@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%",
+    "          -                    :%%%%%%%.   %:  #@%%%%%%%%%%%%%%%%%%%%%",
+    "         #                      :.           -=     %%%%%%%%%%%%%%*",
+    "        +                        -              -     =%%%%%%+",
+    "        ()                         =                     .",
+    "",
+    "",
+    "                                    My Chuhi Rat",                             
+    "           #%#",
+    "         -%%%%",
+    "        %%#+%%.",
+    "      =%%. -%%:     %%-%%%%%#   +%%%%%%#   =%%%%%%%. .%%%%%%%%    #%*%%%%%%=%%%%%#",
+    "     %%#   -%%=    #%%    %%#  %%%       -%%-       %%%     %%#  =%%-   #%%:   %%#",
+    "   =%%%%%%%%%%#   -%%.   -%%.  =%%%%%#  *%%        %%+      %%+  %%+   .%%-   -%%:",
+    "  #%#::::::-%%%   %%+    %%=       +%%  #%%       .%%+    -%%+  %%%    %%*    %%=",
+    "+%%=        %%%  %%%    %%%  #%%%#%%%.  -%%%%%%%-  *%%%%%%%=   +%%.   *%%    #%%",
+};
+static const size_t CHUHI_LINES = sizeof(CHUHI_ART) / sizeof(CHUHI_ART[0]);
+
+/* -------------------------------------------------------------------------
+   Python Interface - anscom.about()
+   Prints the anscom mascot (Chuhi) and a short credit line, then returns None.
+   ------------------------------------------------------------------------- */
+static PyObject* anscom_about(PyObject *self, PyObject *args) {
+    for (size_t i = 0; i < CHUHI_LINES; i++)
+        PySys_WriteStdout("%s\n", CHUHI_ART[i]);
+    PySys_WriteStdout("\n");
+    PySys_WriteStdout("  Chuhi - the house mouse of my Kolkata apartment\n");
+    PySys_WriteStdout("  made by Aditya Narayan Singh\n");
+    PySys_WriteStdout("  anscom v1.5.2 | MIT\n");
+    PySys_WriteStdout("\n");
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef AnscomMethods[] = {
     {"pwd", (PyCFunction)anscom_pwd, METH_NOARGS,
      "pwd() -> str\n\n"
      "Return the current working directory as an absolute path string,\n"
      "mirroring the Unix `pwd` command. Returns a value (never prints), so it\n"
      "stays composable: `root = anscom.pwd(); anscom.scan(root)`."},
+    {"about", (PyCFunction)anscom_about, METH_NOARGS,
+     "about() -> None\n\n"
+     "Print the anscom mascot (Chuhi, the house mouse of a Kolkata apartment)\n"
+     "and a short credit line, then return None."},
     {"scan", (PyCFunction)(void(*)(void))anscom_scan, METH_VARARGS | METH_KEYWORDS,
      "scan(path='.', max_depth=6, show_tree=False, workers=0, min_size=0,\n"
      "     extensions=None, callback=None, silent=False, ignore_junk=False,\n"
@@ -1522,7 +1587,7 @@ static PyMethodDef AnscomMethods[] = {
 static struct PyModuleDef anscommodule = {
     PyModuleDef_HEAD_INIT,
     "anscom",
-    "Anscom Enterprise v1.5.1 — High-performance native C recursive file scanner.\n"
+    "Anscom Enterprise v1.5.2 — High-performance native C recursive file scanner.\n"
     "Multi-threaded, terabyte-scale. Features: tree, JSON, CSV, duplicates,\n"
     "largest-N, regex filter, extension whitelist, progress callback.",
     -1,
