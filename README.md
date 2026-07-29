@@ -26,7 +26,6 @@
 <img src="https://avatars.githubusercontent.com/u/252811141?s=400&u=1ab402f781d9a27985950db4447723e90a1c3703&v=4" height="70" width="70" style="border-radius:12px;" alt="Anscom" />
 </td>
 <td valign="middle">
- <img width="1478" height="879" alt="image" src="https://github.com/user-attachments/assets/48526619-85f9-44c6-aa44-84498c99f03d" />
 
 Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
 </td>
