@@ -1,8 +1,8 @@
+import os
 import sys
 from setuptools import setup, Extension
-# in comparison to v1.3.0 i have removed the excel dependecnies on openpyxl (reason: it was crashing a lot)
-# now the python package is totally dependent upon csv output
-#read the long description from README
+
+# Read the long description from README
 try:
     with open("README.md", "r", encoding="utf-8") as fh:
         long_description = fh.read()
@@ -18,14 +18,20 @@ if sys.platform == "win32":
     extra_compile_args = ['/O2', '/W4']
     extra_link_args = []
 else:
-    # Aggressive POSIX optimizations (GCC/Clang)
+    # POSIX optimizations (GCC/Clang)
     extra_compile_args = [
         '-O3',
-        '-march=native',
         '-Wall',
         '-Wextra',
         '-Wno-unused-parameter',
     ]
+    # -march=native emits instructions tuned to the CPU that runs the build.
+    # That is ideal for a local source install, but a wheel compiled with it can
+    # crash with SIGILL on a machine with a different CPU. It is therefore
+    # opt-in: build with ANSCOM_NATIVE=1 when the build host and run host share
+    # the same CPU (the common `pip install` source-build case).
+    if os.environ.get("ANSCOM_NATIVE") == "1":
+        extra_compile_args.insert(1, '-march=native')
     extra_link_args = ['-pthread']
 
 module = Extension(
@@ -37,7 +43,7 @@ module = Extension(
 
 setup(
     name='anscom',
-    version='1.5.0',
+    version='1.5.2',
     author='Aditya Narayan Singh',
     author_email='adityansdsdc@outlook.com',
     description=(
@@ -84,6 +90,7 @@ setup(
     keywords=[
         'filesystem', 'scanner', 'file-analysis', 'directory',
         'recursive', 'multithreaded', 'C-extension', 'duplicate-detection',
-        'disk-usage', 'audit', 'enterprise'
+        'disk-usage', 'audit', 'enterprise', 'pwd', 'cwd', 'current-directory',
+        'mascot'
     ],
 )
