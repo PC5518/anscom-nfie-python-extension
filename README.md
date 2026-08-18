@@ -1,6 +1,6 @@
 # anscom — a filesystem scanner for Python (C extension)
 
-### A self-directed hobby project by a student learning C and Python internals.
+### My self-directed opensource project by learning C and Python internals.
 
 *Built for fun and for learning. Published on PyPI under the MIT licence so anyone can read the source, try it, or take it apart.*
 
