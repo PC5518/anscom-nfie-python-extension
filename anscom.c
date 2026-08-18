@@ -1,6 +1,6 @@
 /*
  * anscom.c
- *
+ * claude code artificial intelligence is heavily used to form the logics.
  * Version: v1.5.2 (Tree Structure & DFS Fix) flagship version
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
