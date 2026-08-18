@@ -1,6 +1,9 @@
-# AnsCom NFIE — Native Filesystem Intelligence Engine (Python C Extension) on PyPI 
+# anscom — a filesystem scanner for Python (C extension)
 
-# This is the part of my student portfolio.
+### A self-directed hobby project by a student learning C and Python internals.
+
+*Built for fun and for learning. Published on PyPI under the MIT licence so anyone can read the source, try it, or take it apart.*
+
 <table>
 <tr>
 <td valign="middle" width="70%">
@@ -21,10 +24,16 @@
 </table>
 
 ---
+
+## About this project
+
+anscom is a self-directed educational project. I started it to learn two things: how operating systems organise files on disk, and how Python can be extended with native C code. It reads a directory that you point it at and reports what is inside — how many files, of what types, how large — and returns the result as a plain Python dictionary.
+
+It only reads. It does not modify, move, delete, or transmit anything, and it works on directories you already have access to on your own machine.
+
+---
+
 <img width="1474" height="877" alt="image" src="https://github.com/user-attachments/assets/fefc90dc-5051-468b-8722-3ccea10436f3" />
-
-
-
 
 <table>
 <tr>
@@ -33,32 +42,33 @@
 </td>
 <td valign="middle">
 
-Every large organization, research team, and development environment has storage they cannot see clearly. Anscom is the tool that makes it visible — what is on disk, how much, of what type, in how long, down to the exact file extension — returned as a structured Python dict that plugs directly into any pipeline, dashboard, or audit system.
+Most of us lose track of what is actually stored in a project folder once it grows past a few thousand files. anscom answers that question directly — what is there, how much of it, of what type, and how long it took to find out, down to the exact file extension — returned as a structured Python dict that plugs straight into a script, notebook, or report.
 </td>
 </tr>
 </table>
 
 ---
 
-**AnsCom NFIE** is a high-performance, native C99 extension for Python designed for systems engineers, developers, data analysts, and researchers. It recursively scans directories, categorizes files by type, and generates detailed statistical reports with constant-memory streaming traversal.
-Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, allowing it to process massive filesystems instantly without flooding your terminal or exhausting system memory.
+**anscom** is a native C99 extension for Python, useful for students, developers, data analysts, and researchers who want to understand the shape of a directory tree. It walks directories recursively, groups files by type, and produces summary reports using constant-memory traversal.
+
+Unlike standard Python scanners (like `os.walk`), anscom is built in native C, allowing it to process large directory trees quickly without flooding your terminal or exhausting system memory.
 
 ---
 
 ## Key Features
 
 * **Native C Speed:** Written in native C for maximum I/O throughput.
-* **Smart Exclusion System:** Automatically hard-ignores junk directories (`node_modules`, `.venv`, `.git`, `__pycache__`, `build`, etc.).
+* **Smart Exclusion System:** Automatically skips junk directories (`node_modules`, `.venv`, `.git`, `__pycache__`, `build`, etc.).
 * **Zero-Memory Streaming:** Processes files one by one in streaming fashion. Will never crash with `MemoryError`.
 * **Visual Tree Map:** Optional diagrammatic tree view.
-* **Detailed Analytics:**
+* **Detailed Reports:**
   * Category Summary: Groups files by Code, Images, Video, Audio, Archives, Executables, etc.
   * Extension Breakdown: Exact counts for every file extension (`.py`, `.c`, `.png`, etc.).
 * **Live Progress:** In-place progress counter.
-* **Safety Circuit Breaker:** Configurable recursion depth limit (Default: 6).
+* **Safety Depth Limit:** Configurable recursion depth limit (Default: 6).
 * **Multi-Threaded Worker Pool:** Spawns N worker threads (auto-detected from CPU core count) pulling directories from a shared work queue.
 * **Extension Whitelisting:** Pass a list of extensions to count only those file types.
-* **Silent Mode:** Suppress all terminal output — ideal for embedding inside pipelines or CI systems.
+* **Silent Mode:** Suppress all terminal output — useful when calling it from another script.
 * **Minimum Size Filter:** Skip files below a byte threshold.
 * **Cross-Platform:** Three separate OS-optimized backends: `FindFirstFileW` (Windows), `getdents64` direct syscall (Linux), POSIX `readdir` fallback (macOS/BSD).
 * **JSON Export:** Export full scan results as a formatted `.json` file — zero external dependencies, fully native.
@@ -66,7 +76,7 @@ Unlike standard Python scanners (like `os.walk`), AnsCom is built in native C, a
 * **CSV Export** *(new in v1.5.0)*: Per-file inventory as a UTF-8 CSV — `path`, `size`, `ext`, `category`, `mtime`. Zero dependencies, RFC 4180-compliant quoting.
 * **Per-File Return** *(new in v1.5.0)*: Opt-in `return_files=True` adds a complete file list to the returned dict for downstream Python processing.
 * **Top-N Largest Files** *(new in v1.5.0)*: `largest_n=N` reports the largest files via per-thread min-heap — O(log N) per file, no extra pass.
-* **Duplicate Detection** *(new in v1.5.0)*: Two-phase size-bucket + CRC32 fingerprinting — zero I/O for unique-size files.
+* **Duplicate Detection** *(new in v1.5.0)*: Two-phase size-bucket + CRC32 checksum comparison — zero I/O for unique-size files.
 * **Regex Path Filter** *(new in v1.5.0)*: `regex_filter` restricts the scan to paths matching a pattern. POSIX `regexec` on Linux/macOS for zero GIL overhead.
 * **Current Directory Helper** *(new in v1.5.1)*: `anscom.pwd()` returns the working directory as an absolute string (the Unix `pwd`), `anscom.scan()` with no path scans it, and every result dict now includes `scanned_path` — the absolute path that was actually walked.
 * **Mascot** *(new in v1.5.2)*: `anscom.about()` prints **Chuhi**, the anscom mascot (the house mouse of a Kolkata apartment), as ASCII art with a short credit line.
@@ -418,7 +428,7 @@ with open("inventory.csv", newline="", encoding="utf-8") as f:
 import anscom
 
 anscom.scan(
-    "/mnt/enterprise-storage",
+    "/mnt/nas-storage",
     max_depth=20,
     show_tree=True,
     silent=True,
@@ -536,7 +546,7 @@ The printed report also gains a section:
 ### `find_duplicates` — Two-Phase Duplicate Detection
 
 1. **Size bucketing** — files sorted by size. Files with a unique size are skipped — zero I/O.
-2. **CRC32 fingerprinting** — for each same-size group ≥2 files, the first 4096 bytes of each are read and CRC32 is computed. Matching CRC32s are reported as duplicates.
+2. **CRC32 checksum** — for each same-size group ≥2 files, the first 4096 bytes of each are read and CRC32 is computed. Matching CRC32s are reported as duplicates.
 
 ```python
 result = anscom.scan("/media-library", find_duplicates=True, silent=True)
@@ -592,7 +602,7 @@ result = anscom.scan("/project", regex_filter=r"/src/", silent=True)
 
 ## Report Output
 
-After scanning, AnsCom prints:
+After scanning, anscom prints:
 - Summary Report
 - Detailed Extension Breakdown
 - Top-N Largest Files *(when `largest_n > 0`)*
@@ -640,7 +650,7 @@ Get answers like:
 
 ### Dataset Inspection
 
-Machine learning projects often contain datasets with thousands of files spread across nested directories. Anscom lets you verify a dataset's composition before kicking off a training run.
+Machine learning projects often contain datasets with thousands of files spread across nested directories. anscom lets you verify a dataset's composition before kicking off a training run.
 
 ```python
 anscom.scan("datasets/")
@@ -648,9 +658,9 @@ anscom.scan("datasets/")
 
 ---
 
-### Storage Auditing
+### Storage Review
 
-Understand what's consuming space in a directory — whether it's archives piling up, temporary files accumulating, or an unexpected file type dominating.
+Understand what's taking up space in a directory — whether it's archives piling up, temporary files accumulating, or an unexpected file type dominating.
 
 ```python
 anscom.scan("/data/storage", max_depth=10)
@@ -658,9 +668,9 @@ anscom.scan("/data/storage", max_depth=10)
 
 ---
 
-### Large Filesystem Exploration
+### Large Directory Exploration
 
-Modern development environments can contain tens of thousands of files once dependencies are included. Anscom focuses only on what matters by automatically skipping known junk directories.
+Modern development environments can contain tens of thousands of files once dependencies are included. anscom focuses only on what matters by automatically skipping known junk directories.
 
 | Ignored Directory | Reason |
 |---|---|
@@ -675,18 +685,18 @@ Modern development environments can contain tens of thousands of files once depe
 
 ### Development Tool Integration
 
-Anscom is designed to be embedded as a backend engine for tools that need filesystem analytics:
+anscom can be used as a backend for tools that need directory statistics:
 
 - Code statistics dashboards
 - Project analysis and reporting tools
-- Automated repository audits
-- DevOps pipeline checks and gates
+- Automated repository summaries
+- Build pipeline checks
 
 ---
 
-## Enterprise Use Cases
+## Larger-Scale Use Cases
 
-### Storage Intelligence & Cost Allocation
+### Storage Breakdown by Category
 
 ```python
 import anscom
@@ -708,7 +718,7 @@ print(f"Source code:  {code:,}  ({code/total*100:.1f}%)")
 print(f"Scan time:    {result['duration_seconds']:.3f}s")
 ```
 
-### Pre-Migration Filesystem Audit
+### Pre-Migration Directory Inventory
 
 ```python
 import anscom
@@ -722,10 +732,10 @@ result = anscom.scan(
     export_csv="pre_migration_inventory.csv",
 )
 
-print(f"Audit complete: {result['total_files']:,} files recorded.")
+print(f"Inventory complete: {result['total_files']:,} files recorded.")
 ```
 
-### CI/CD Pipeline File Validation
+### Build Pipeline File Check
 
 ```python
 import anscom, sys
@@ -733,7 +743,7 @@ import anscom, sys
 result = anscom.scan("./repo", silent=True, ignore_junk=True)
 
 if result["categories"]["Executables"] > 0:
-    print(f"POLICY VIOLATION: {result['categories']['Executables']} executables found in repo.")
+    print(f"Check failed: {result['categories']['Executables']} executable files found in repo.")
     sys.exit(1)
 
 print("File composition check passed.")
@@ -762,9 +772,9 @@ print(f"Duplicate groups : {len(result['duplicates'])}")
 print(f"Reclaimable      : {wasted / (1024**3):.2f} GB")
 ```
 
-### Full Filesystem Tree Capture (Terabyte-Scale)
+### Full Directory Tree Capture (Very Large Volumes)
 
-Anscom imposes no internal limit on the volume of filesystem it will traverse. Memory usage is bounded by the work queue capacity (131,072 directory slots) and the per-thread path slabs — neither grows with the total number of files on disk.
+anscom imposes no internal limit on the volume it will traverse. Memory usage is bounded by the work queue capacity (131,072 directory slots) and the per-thread path slabs — neither grows with the total number of files on disk.
 
 ```python
 import anscom
@@ -789,7 +799,7 @@ anscom.scan(
 | **1.5.1** | 28 July 2026 | **Ergonomics & correctness.** Added `pwd()` (returns the current working directory as an absolute string — the Unix `pwd`, as a value), no-argument `scan()` (defaults to the current working directory), and `scanned_path` in every result dict (absolute path actually walked). Fixed Python reference leaks in result-dict construction (`PyDict_SetItemString` / `PyList_Append` do not steal references). The per-thread file buffer is no longer pre-allocated on count-only scans — a plain `anscom.scan()` now performs zero heap work on the hot path. Fully backward-compatible: every v1.5.0 script runs unchanged. |
 | **1.5.0** | 09 April 2026 | **Major feature release.** Added `return_files` (per-file list in result dict), `export_csv` (UTF-8 CSV inventory, RFC 4180-compliant, zero deps), `largest_n` (top-N largest files via per-thread min-heap, O(log N) per file), `find_duplicates` (two-phase size + CRC32 detection, zero I/O for unique-size files), `regex_filter` (POSIX `regexec` on Linux/macOS for GIL-free path filtering, Python `re` fallback on Windows). Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans. All new features are strictly opt-in: default `anscom.scan(".")` runs the identical hot path as v1.3.0. Removed `export_excel` (was crashing on Windows due to `openpyxl` `Workbook.read_only` exception); use `export_csv` + `pandas.to_excel()` instead. |
 | **1.3.0** | 15 March 2026 | **Export release.** Added `export_json` (native, zero dependencies), `export_tree` (DFS tree to `.txt`), and `export_excel` (structured `.xlsx` with openpyxl). MSVC Windows compiler compatibility fix for `uint64_t` / `stdint.h`. |
-| **1.0.0** | 13 March 2026 | **Major release.** Terabyte-scale filesystem scanning. Multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks, slab path allocator, extension whitelisting, silent mode, min_size filter, and live callback interface. |
+| **1.0.0** | 13 March 2026 | **Major release.** Large-volume directory scanning. Multi-threaded worker pool, `getdents64` direct syscall backend (Linux), FNV-1a hash table for O(1) extension lookup, per-thread statistics with zero shared locks, slab path allocator, extension whitelisting, silent mode, min_size filter, and live callback interface. |
 | 0.6.0 | Jan 15, 2026 | Added features like data tree and many more |
 | 0.5.0 | Jan 15, 2026 | — |
 | 0.4.0 | Jan 15, 2026 | Release of the basic version with the concept of anscom |
@@ -799,8 +809,6 @@ anscom.scan(
 <img width="840" height="541" alt="image" src="https://github.com/user-attachments/assets/d0a84577-9c8d-478c-9b04-b900cc191b62" />
 <img width="1235" height="758" alt="image" src="https://github.com/user-attachments/assets/a6c727d6-58f9-4c6f-bb64-88092d96b249" />
 
-
-
 ---
 
 ## Contributing
@@ -808,7 +816,9 @@ anscom.scan(
 Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
 
 ---
-## Totally open to accept suggestion.
+
+## Totally open to suggestions.
+
 ## anscom official web
 
 https://anscomqs.github.io/anscom/
