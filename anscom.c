@@ -16,10 +16,10 @@
  *         directory); the result dict now includes 'scanned_path'. Fixed Python
  *         reference leaks in result-dict construction (PyDict/PyList do not
  *         steal references). The per-file array is no longer pre-allocated for
- *         count-only scans, so the plain hot path performs zero heap work.
+ *         count-only scans, so the plain hot path performs zero heap work. this is important. will fix it  
  * v1.5.2: Added about() - prints the anscom mascot "Chuhi" (the house mouse of
  *         a Kolkata apartment) and credits. No other behavior changed.
- *          purely an addition based update  !
+ *          purely an addition based update  !  
  */
 
 
