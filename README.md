@@ -9,7 +9,7 @@
 <td valign="middle" width="70%">
 
 [![PyPI version](https://badge.fury.io/py/anscom.svg)](https://pypi.org/project/anscom/)
-![Current Release](https://img.shields.io/badge/release-1.5.2-blue)
+![Current Release](https://img.shields.io/badge/release-1.5.3-blue)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.6-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -80,6 +80,7 @@ Unlike standard Python scanners (like `os.walk`), anscom is built in native C, a
 * **Regex Path Filter** *(new in v1.5.0)*: `regex_filter` restricts the scan to paths matching a pattern. POSIX `regexec` on Linux/macOS for zero GIL overhead.
 * **Current Directory Helper** *(new in v1.5.1)*: `anscom.pwd()` returns the working directory as an absolute string (the Unix `pwd`), `anscom.scan()` with no path scans it, and every result dict now includes `scanned_path` — the absolute path that was actually walked.
 * **Mascot** *(new in v1.5.2)*: `anscom.about()` prints **Chuhi**, the anscom mascot (the house mouse of a Kolkata apartment), as ASCII art with a short credit line.
+* **Byte Totals** *(new in v1.5.3)*: `with_size=True` adds `total_size`, `category_sizes` and `extension_sizes` to the result — bytes alongside the counts, so you can see *where the disk actually went*, not just how many files there are. Opt-in, because on Linux it costs one extra `stat()` per file.
 
 ---
 
@@ -192,6 +193,18 @@ result = anscom.scan("/codebase", regex_filter=r"/tests/.*\.py$", silent=True)
 print(f"Matched test files: {result['total_files']}")
 ```
 
+### Byte Totals *(new in v1.5.3)*
+```python
+import anscom
+result = anscom.scan("/mnt/storage", with_size=True, silent=True)
+
+print(result["total_size"])        # total bytes across every counted file
+print(result["category_sizes"])    # {'Videos': 365..., 'Code/Source': 2..., ...}
+print(result["extension_sizes"])   # {'mkv': 225..., 'mp4': 139..., 'py': 8..., ...}
+```
+
+Counts tell you *how many*; this tells you *how much*. Both describe exactly the same set of files — every filter is applied before a size is added.
+
 ### All exports in one scan pass
 ```python
 import anscom
@@ -286,7 +299,7 @@ Errors   : 0 (permission denied / inaccessible)
 
 ## API Reference
 
-### `anscom.scan(path='.', max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, return_files=False, export_csv=None, largest_n=0, find_duplicates=False, regex_filter=None)`
+### `anscom.scan(path='.', max_depth=6, show_tree=False, workers=0, min_size=0, extensions=None, callback=None, silent=False, ignore_junk=False, export_json=None, export_tree=None, return_files=False, export_csv=None, largest_n=0, find_duplicates=False, regex_filter=None, with_size=False)`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -306,6 +319,7 @@ Errors   : 0 (permission denied / inaccessible)
 | `largest_n` *(new in v1.5.0)* | `int` | `0` | If > 0, the result dict gains a `"largest_files"` key with the top-N largest files by size. Implemented via per-thread min-heap — O(log N) per file, no extra pass. |
 | `find_duplicates` *(new in v1.5.0)* | `bool` | `False` | If `True`, the result dict gains a `"duplicates"` key: a list of groups, each a list of paths sharing identical content. Two-phase: size bucket → CRC32 of first 4KB. |
 | `regex_filter` *(new in v1.5.0)* | `str` | `None` | A regex pattern. Only files whose full path matches are counted, categorized, and tracked. Uses POSIX `regexec` on Linux/macOS (no GIL); Python `re` fallback on Windows. |
+| `with_size` *(new in v1.5.3)* | `bool` | `False` | If `True`, the result dict gains `total_size`, `category_sizes` and `extension_sizes` — byte totals alongside the counts. Opt-in: on Linux it costs one extra `stat()` per file (free on Windows, and free on macOS/BSD). |
 
 **Returns:** `dict`
 
@@ -320,6 +334,9 @@ Errors   : 0 (permission denied / inaccessible)
 | `files` | `list[dict]` | `return_files=True` | Per-file records: `path`, `size`, `ext`, `category`, `mtime` |
 | `largest_files` | `list[dict]` | `largest_n > 0` | Top-N files by size: `path`, `size` |
 | `duplicates` | `list[list[str]]` | `find_duplicates=True` | Groups of paths sharing identical content (size + CRC32) |
+| `total_size` *(new in v1.5.3)* | `int` | `with_size=True` | Total bytes across every file that was counted |
+| `category_sizes` *(new in v1.5.3)* | `dict[str, int]` | `with_size=True` | Bytes per category — all 9 keys present, mirroring `categories` |
+| `extension_sizes` *(new in v1.5.3)* | `dict[str, int]` | `with_size=True` | Bytes per extension — only non-zero entries, mirroring `extensions` |
 
 ### `anscom.pwd()` *(new in v1.5.1)*
 
@@ -346,7 +363,7 @@ anscom.about()             # meet Chuhi
 
 ### export_json — Native, Zero Dependencies
 
-Export the full scan result as a formatted JSON file. Uses Python's built-in `json` module internally — no `pip install` required. The JSON file contains **all** keys present in the returned dict, including optional v1.5.0 keys (`files`, `largest_files`, `duplicates`) when those features are enabled in the same call.
+Export the full scan result as a formatted JSON file. Uses Python's built-in `json` module internally — no `pip install` required. The JSON file contains **all** keys present in the returned dict, including optional v1.5.0 keys (`files`, `largest_files`, `duplicates`) and the v1.5.3 byte-total keys (`total_size`, `category_sizes`, `extension_sizes`) when those features are enabled in the same call.
 
 ```python
 import anscom
@@ -443,6 +460,59 @@ anscom.scan(
 ```
 
 One scan pass. Multiple output files. Full in-memory results. No re-scanning.
+
+---
+
+## v1.5.3 Highlights
+
+### `with_size` — bytes, not just counts
+
+Counts answer *how many files*. They do not answer *where the disk went*. A folder with 8,900 code files and 1,240 videos looks code-heavy by count and is overwhelmingly video by bytes:
+
+```python
+import anscom
+
+r = anscom.scan("/mnt/nas", with_size=True, silent=True)
+
+for cat in r["categories"]:
+    n, b = r["categories"][cat], r["category_sizes"][cat]
+    if n:
+        print(f"{cat:16s} {n:>9,} files  {b/1024**3:>9.2f} GB  {b/n/1024:>9.1f} KB avg")
+
+# Code/Source        8,912 files       2.06 GB      242.3 KB avg
+# Videos             1,240 files     340.11 GB   287654.2 KB avg
+#   ← 7x fewer files, 165x more disk
+```
+
+`largest_n` already shows the biggest individual files, but disk rarely fills up from ten large files — it fills up from fifty thousand small ones. Category and extension totals are what close that gap.
+
+### Counts and bytes always describe the same files
+
+Every filter (`extensions`, `regex_filter`, `min_size`) is applied before a size is accumulated, so `total_size` is always the true sum of exactly the `total_files` files that were counted — never a superset.
+
+### Why it's opt-in
+
+On Linux the scanner reads directory entries with `getdents64` and uses `d_type` to identify regular files without ever calling `stat()`. Byte totals need `st_size`, so `with_size=True` adds one `fstatat()` per file — measurable on a multi-million-file tree. Leave it off and the count-only hot path is byte-for-byte the v1.5.2 one.
+
+| Platform | Extra cost with `with_size=True` |
+|---|---|
+| Linux | One `fstatat()` per file — unless another feature already needs the size |
+| Windows | None — size already arrives in `WIN32_FIND_DATAW` |
+| macOS / BSD | None — the backend already calls `lstat` |
+
+If `min_size`, `largest_n`, `return_files`, `export_csv` or `find_duplicates` is already on, the size has been fetched anyway and `with_size` reuses it for free.
+
+### Exports
+
+The three keys flow into `export_json` automatically — no new export parameter:
+
+```python
+anscom.scan("/data", with_size=True, export_json="report.json", silent=True)
+```
+
+`export_csv` is unchanged: it already carries a per-file `size` column, and aggregate totals are deliberately kept out so the file stays a clean rectangular table `pandas.read_csv` can load without special handling. The printed report is unchanged too — byte totals are returned as data, not printed.
+
+Without the flag, the result dict has the identical shape it had in v1.5.2 — the three keys are simply absent. Every existing script runs unchanged.
 
 ---
 
@@ -621,6 +691,7 @@ After scanning, anscom prints:
 - Per-thread min-heap for `largest_n` — O(log N) per file, lock-free
 - Per-thread `FileInfo` array pre-allocated at 65,536 entries **only when a file-collecting feature is enabled** (`return_files` / `export_csv` / `find_duplicates`) — plain count-only scans do zero heap work on the hot path
 - POSIX `regexec` for `regex_filter` on Linux/macOS — fully GIL-free regex matching inside worker threads
+- Per-thread byte accumulators for `with_size` (`total_size`, `cat_sizes[9]`, `ext_sizes[170+]`) living in the same lock-free `ScanStats` struct as the counts, merged in their own serial pass after the threads join — and never touched at all when the flag is off
 
 ---
 
@@ -772,6 +843,36 @@ print(f"Duplicate groups : {len(result['duplicates'])}")
 print(f"Reclaimable      : {wasted / (1024**3):.2f} GB")
 ```
 
+### Where the Disk Actually Went *(new in v1.5.3)*
+
+```python
+import anscom
+
+r = anscom.scan("/mnt/nas", with_size=True, ignore_junk=True,
+                workers=16, silent=True)
+
+def human(n):
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.1f} {unit}"
+        n /= 1024
+
+print(f"{r['total_files']:,} files, {human(r['total_size'])} total\n")
+
+for cat, size in sorted(r["category_sizes"].items(),
+                        key=lambda kv: kv[1], reverse=True):
+    if not size:
+        continue
+    share = size / r["total_size"] * 100
+    print(f"{cat:16s} {r['categories'][cat]:>9,} files  "
+          f"{human(size):>10s}  {share:5.1f}%")
+
+print("\nTop extensions by size:")
+for ext, size in sorted(r["extension_sizes"].items(),
+                        key=lambda kv: kv[1], reverse=True)[:10]:
+    print(f"  .{ext:<10s} {human(size):>10s}")
+```
+
 ### Full Directory Tree Capture (Very Large Volumes)
 
 anscom imposes no internal limit on the volume it will traverse. Memory usage is bounded by the work queue capacity (131,072 directory slots) and the per-thread path slabs — neither grows with the total number of files on disk.
@@ -795,6 +896,7 @@ anscom.scan(
 
 | Version | Date | Notes |
 |---|---|---|
+| **1.5.3** | 24 August 2026 | **Byte accounting.** Added `with_size` — an opt-in flag that adds `total_size`, `category_sizes` and `extension_sizes` to the result dict, so counts are joined by bytes. The three keys are written to `export_json` automatically; `export_csv` and the printed report are unchanged. Opt-in because byte totals need `st_size`: on Linux that is one extra `fstatat()` per file, skipped when another feature has already fetched it, and free on Windows and macOS/BSD. Purely additive — with the flag off, the result dict has the identical shape it had in v1.5.2 and every existing script runs unchanged. |
 | **1.5.2** | 29 July 2026 | **Mascot.** Added `about()` — prints **Chuhi**, the anscom mascot (the house mouse of a Kolkata apartment), as original ASCII art with a short credit line, then returns `None`. Fully backward-compatible: no scan behavior, call signature, or output format changed. |
 | **1.5.1** | 28 July 2026 | **Ergonomics & correctness.** Added `pwd()` (returns the current working directory as an absolute string — the Unix `pwd`, as a value), no-argument `scan()` (defaults to the current working directory), and `scanned_path` in every result dict (absolute path actually walked). Fixed Python reference leaks in result-dict construction (`PyDict_SetItemString` / `PyList_Append` do not steal references). The per-thread file buffer is no longer pre-allocated on count-only scans — a plain `anscom.scan()` now performs zero heap work on the hot path. Fully backward-compatible: every v1.5.0 script runs unchanged. |
 | **1.5.0** | 09 April 2026 | **Major feature release.** Added `return_files` (per-file list in result dict), `export_csv` (UTF-8 CSV inventory, RFC 4180-compliant, zero deps), `largest_n` (top-N largest files via per-thread min-heap, O(log N) per file), `find_duplicates` (two-phase size + CRC32 detection, zero I/O for unique-size files), `regex_filter` (POSIX `regexec` on Linux/macOS for GIL-free path filtering, Python `re` fallback on Windows). Per-thread `FileInfo` array pre-allocated at 65,536 entries — zero reallocations for typical scans. All new features are strictly opt-in: default `anscom.scan(".")` runs the identical hot path as v1.3.0. Removed `export_excel` (was crashing on Windows due to `openpyxl` `Workbook.read_only` exception); use `export_csv` + `pandas.to_excel()` instead. |
