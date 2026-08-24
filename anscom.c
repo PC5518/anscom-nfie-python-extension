@@ -1,7 +1,7 @@
 /*
  * anscom.c
- * claude code artificial intelligence is heavily used to form the logics.
- * Version: v1.5.2 (Tree Structure & DFS Fix) flagship version
+ *
+ * Version: v1.5.3 (Byte Accounting)
  * Description: High-performance, multi-threaded recursive file scanner.
  *              Fixed Deep-Tree generation and added file tracking.
  * Compilation: python setup.py build_ext --inplace
@@ -16,10 +16,14 @@
  *         directory); the result dict now includes 'scanned_path'. Fixed Python
  *         reference leaks in result-dict construction (PyDict/PyList do not
  *         steal references). The per-file array is no longer pre-allocated for
- *         count-only scans, so the plain hot path performs zero heap work. this is important. will fix it  
+ *         count-only scans, so the plain hot path performs zero heap work.
  * v1.5.2: Added about() - prints the anscom mascot "Chuhi" (the house mouse of
  *         a Kolkata apartment) and credits. No other behavior changed.
- *          purely an addition based update  !  
+ * v1.5.3: Added with_size - opt-in byte accounting. The result dict gains
+ *         total_size, category_sizes and extension_sizes, which export_json
+ *         picks up automatically. Opt-in because on Linux it costs one extra
+ *         stat() per file; left off, the count-only path stays syscall-free.
+ *         Purely additive - no existing parameter or output shape changed.
  */
 
 
@@ -261,6 +265,12 @@ typedef struct {
     int top_files_count;
     int find_duplicates_enabled;
     uint64_t duplicates_groups;
+    /* v1.6.0 additive: byte accounting. Only populated when with_size=1;
+       zero-initialised by the existing calloc/memset, so a scan without the
+       flag behaves exactly as before. */
+    uint64_t total_size;
+    uint64_t cat_sizes[CAT_COUNT];
+    uint64_t ext_sizes[sizeof(EXTENSION_TABLE) / sizeof(ExtDef)];
 } ScanStats;
 
 typedef struct {
@@ -276,6 +286,7 @@ typedef struct {
     const char *export_csv;
     int largest_n;
     int find_duplicates;
+    int with_size;   /* v1.6.0 additive: accumulate byte totals */
     PyObject *regex_compiled;
 #ifndef _WIN32
     regex_t regex_compiled_posix;
@@ -408,6 +419,7 @@ static void identify_and_count(const char *filename, ThreadState *ts) {
 
     FileCategory found_cat = CAT_UNKNOWN;
     char found_ext[32] = "";
+    int found_table_idx = -1;   /* v1.6.0 additive: -1 = no EXTENSION_TABLE slot */
 
     const char *dot = strrchr(filename, '.');
     if (!dot || dot == filename) {
@@ -439,6 +451,7 @@ static void identify_and_count(const char *filename, ThreadState *ts) {
                 ATOMIC_ADD(&g_atomic_scanned, 1);
                 found_cat = EXTENSION_TABLE[table_idx].category;
                 strcpy(found_ext, EXTENSION_TABLE[table_idx].ext);
+                found_table_idx = table_idx;   /* v1.6.0 additive */
                 matched = 1;
                 break;
             }
@@ -453,6 +466,16 @@ static void identify_and_count(const char *filename, ThreadState *ts) {
             found_cat = CAT_UNKNOWN;
             strcpy(found_ext, ext_lower);
         }
+    }
+
+    /* v1.6.0 additive: byte accounting. Placed after every early return
+       (regex filter, extension whitelist) so the byte totals always cover
+       exactly the same files as the counts above — never a superset. */
+    if (ts->config->with_size) {
+        ts->stats.total_size           += ts->current_file_size;
+        ts->stats.cat_sizes[found_cat] += ts->current_file_size;
+        if (found_table_idx >= 0)
+            ts->stats.ext_sizes[found_table_idx] += ts->current_file_size;
     }
 
     /* Collect full FileInfo when any of these features are active */
@@ -718,6 +741,17 @@ static void process_dir_recursive(const char *base_path, int depth, ThreadState 
                 }
             }
 
+            /* v1.6.0 additive: with_size needs st_size, but only when asked.
+               Guarded on the flag, so a count-only scan still issues zero
+               extra syscalls and the fast path above is untouched. */
+            if (type == DT_REG && ts->config->with_size && !stat_called) {
+                if (fstatat(dirfd, d->d_name, &st, AT_SYMLINK_NOFOLLOW) == 0) {
+                    stat_called = 1;
+                    file_size   = st.st_size;
+                    file_mtime  = st.st_mtime;
+                }
+            }
+
             if (type == DT_DIR) {
                 if (ts->config->ignore_junk && is_ignored(d->d_name)) continue;
                 snprintf(current_slab, PATH_MAX, "%s/%s", base_path, d->d_name);
@@ -978,6 +1012,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     int largest_n            = 0;
     int find_duplicates      = 0;
     const char *regex_filter = NULL;
+    int with_size            = 0;
 
     double elapsed = 0.0;
 #ifdef _WIN32
@@ -990,15 +1025,18 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
         "path", "max_depth", "show_tree", "workers",
         "min_size", "extensions", "callback", "silent", "ignore_junk",
         "export_json", "export_tree",
-        "return_files", "export_csv", "largest_n", "find_duplicates", "regex_filter", NULL
+        "return_files", "export_csv", "largest_n", "find_duplicates", "regex_filter",
+        "with_size", NULL
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, keywds, "|zipiKOOppzzpzipz", kwlist,
+    /* with_size is appended at the end of kwlist, so every existing positional
+       or keyword call site keeps its exact meaning. */
+    if (!PyArg_ParseTupleAndKeywords(args, keywds, "|zipiKOOppzzpzipzp", kwlist,
                                      &input_path, &max_depth, &show_tree, &workers,
                                      &min_size, &extensions_list, &callback, &silent, &ignore_junk,
                                      &export_json, &export_tree,
                                      &return_files, &export_csv, &largest_n, &find_duplicates,
-                                     &regex_filter)) {
+                                     &regex_filter, &with_size)) {
         return NULL;
     }
 
@@ -1030,6 +1068,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     config.export_csv     = export_csv;
     config.largest_n      = largest_n;
     config.find_duplicates = find_duplicates;
+    config.with_size      = with_size;
 
     /* Extension whitelist */
     if (extensions_list != Py_None && PyList_Check(extensions_list)) {
@@ -1134,7 +1173,7 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
 
     g_atomic_scanned = 0;
 
-    PySys_WriteStdout("\nAnscom Enterprise v1.5.2 (Threads: %d)\n", workers);
+    PySys_WriteStdout("\nanscom v1.5.3 (Threads: %d)\n", workers);
     PySys_WriteStdout("Target: %s\n", input_path);
 
 #ifdef _WIN32
@@ -1211,6 +1250,19 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
             final_stats.cat_counts[c] += threads[i].stats.cat_counts[c];
         for (int e = 0; e < EXTENSION_COUNT; e++)
             final_stats.ext_counts[e] += threads[i].stats.ext_counts[e];
+    }
+
+    /* v1.6.0 additive: merge byte totals in their own pass, so the existing
+       merge loop above stays byte-for-byte unchanged. Skipped entirely when
+       the feature is off. */
+    if (with_size) {
+        for (int i = 0; i < workers; i++) {
+            final_stats.total_size += threads[i].stats.total_size;
+            for (int c = 0; c < CAT_COUNT; c++)
+                final_stats.cat_sizes[c] += threads[i].stats.cat_sizes[c];
+            for (int e = 0; e < EXTENSION_COUNT; e++)
+                final_stats.ext_sizes[e] += threads[i].stats.ext_sizes[e];
+        }
     }
 
     /* Merge file arrays */
@@ -1374,6 +1426,31 @@ static PyObject* anscom_scan(PyObject *self, PyObject *args, PyObject *keywds) {
     PyDict_SetItemString(res_dict, "extensions", ext_dict);
     Py_DECREF(ext_dict);
 
+    /* v1.6.0 additive: byte totals. Added to res_dict before the JSON export
+       block below, so export_json serialises them with no change to that code.
+       The keys are absent unless with_size=True, keeping the old result shape
+       intact for existing callers. */
+    if (with_size) {
+        dict_set_new(res_dict, "total_size",
+                     PyLong_FromUnsignedLongLong(final_stats.total_size));
+
+        PyObject *cat_size_dict = PyDict_New();
+        for (int i = 0; i < CAT_COUNT; i++)
+            dict_set_new(cat_size_dict, CAT_NAMES[i],
+                         PyLong_FromUnsignedLongLong(final_stats.cat_sizes[i]));
+        PyDict_SetItemString(res_dict, "category_sizes", cat_size_dict);
+        Py_DECREF(cat_size_dict);
+
+        PyObject *ext_size_dict = PyDict_New();
+        for (int i = 0; i < EXTENSION_COUNT; i++) {
+            if (final_stats.ext_sizes[i] > 0)
+                dict_set_new(ext_size_dict, EXTENSION_TABLE[i].ext,
+                             PyLong_FromUnsignedLongLong(final_stats.ext_sizes[i]));
+        }
+        PyDict_SetItemString(res_dict, "extension_sizes", ext_size_dict);
+        Py_DECREF(ext_size_dict);
+    }
+
     if (return_files) {
         PyObject *files_list = PyList_New(0);
         for (uint64_t i = 0; i < global_files_count; i++) {
@@ -1517,7 +1594,7 @@ static const char *CHUHI_ART[] = {
     "        ()                         =                     .",
     "",
     "",
-    "                                    My Chuhi Rat",                             
+    "                                    Meri Chuhi :) (My Chuhi)",
     "           #%#",
     "         -%%%%",
     "        %%#+%%.",
@@ -1537,9 +1614,10 @@ static PyObject* anscom_about(PyObject *self, PyObject *args) {
     for (size_t i = 0; i < CHUHI_LINES; i++)
         PySys_WriteStdout("%s\n", CHUHI_ART[i]);
     PySys_WriteStdout("\n");
-    PySys_WriteStdout("  Chuhi - the house mouse of my Kolkata apartment\n");
+    PySys_WriteStdout("  Chuhi - the cute female house mouse of my Kolkata apartment\n");
     PySys_WriteStdout("  made by Aditya Narayan Singh\n");
-    PySys_WriteStdout("  anscom v1.5.2 | MIT\n");
+    PySys_WriteStdout("  anscom v1.5.3 | MIT\n");
+    PySys_WriteStdout("  I am always happy and open for any fix in the code and can make this project together.\n");
     PySys_WriteStdout("\n");
     Py_RETURN_NONE;
 }
@@ -1559,7 +1637,7 @@ static PyMethodDef AnscomMethods[] = {
      "     extensions=None, callback=None, silent=False, ignore_junk=False,\n"
      "     export_json=None, export_tree=None,\n"
      "     return_files=False, export_csv=None, largest_n=0,\n"
-     "     find_duplicates=False, regex_filter=None) -> dict\n\n"
+     "     find_duplicates=False, regex_filter=None, with_size=False) -> dict\n\n"
      "High-performance multi-threaded recursive file scanner.\n\n"
      "Parameters\n----------\n"
      "path         : str   — root directory to scan (optional; defaults to the\n"
@@ -1578,19 +1656,23 @@ static PyMethodDef AnscomMethods[] = {
      "export_csv   : str   — path to write CSV of all files\n"
      "largest_n    : int   — report top-N largest files\n"
      "find_duplicates: bool — detect duplicate files (CRC32 after size match)\n"
-     "regex_filter : str   — only count files whose path matches this pattern\n\n"
+     "regex_filter : str   — only count files whose path matches this pattern\n"
+     "with_size    : bool  — also accumulate byte totals. Opt-in because on\n"
+     "                       Linux it costs one extra stat() per file; leaving\n"
+     "                       it off keeps the count-only path syscall-free\n\n"
      "Returns\n-------\n"
      "dict with keys: total_files, scan_errors, duration_seconds, scanned_path,\n"
-     "                categories, extensions, [files], [largest_files], [duplicates]"},
+     "                categories, extensions, [files], [largest_files], [duplicates],\n"
+     "                [total_size], [category_sizes], [extension_sizes]"},
     {NULL, NULL, 0, NULL}
 };
 
 static struct PyModuleDef anscommodule = {
     PyModuleDef_HEAD_INIT,
     "anscom",
-    "Anscom Enterprise v1.5.2 — High-performance native C recursive file scanner.\n"
+    "anscom v1.5.3 — High-performance native C recursive file scanner.\n"
     "Multi-threaded, terabyte-scale. Features: tree, JSON, CSV, duplicates,\n"
-    "largest-N, regex filter, extension whitelist, progress callback.",
+    "largest-N, regex filter, extension whitelist, byte totals, progress callback.",
     -1,
     AnscomMethods
 };
