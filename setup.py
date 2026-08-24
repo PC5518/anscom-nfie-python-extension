@@ -43,13 +43,14 @@ module = Extension(
 
 setup(
     name='anscom',
-    version='1.5.2',
+    version='1.5.3',
     author='Aditya Narayan Singh',
     author_email='adityansdsdc@outlook.com',
     description=(
         'High-performance native C recursive file scanner: '
         'multi-threaded, terabyte-scale, with CSV/JSON/Tree export, '
-        'duplicate detection, largest-N report, and regex filtering.'
+        'duplicate detection, largest-N report, byte totals per category '
+        'and extension, and regex filtering.'
     ),
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -57,7 +58,7 @@ setup(
     # Primary links shown on PyPI
     url='https://github.com/PC5518/anscom-nfie-python-extension',
     project_urls={
-        "Homepage":    "https://anscomqs.github.io/anscom/",
+        "Homepage":    "https://anscomqs.github.io",
         "Source":      "https://github.com/PC5518/anscom-nfie-python-extension",
         "Bug Tracker": "https://github.com/PC5518/anscom-nfie-python-extension/issues",
     },
@@ -90,7 +91,7 @@ setup(
     keywords=[
         'filesystem', 'scanner', 'file-analysis', 'directory',
         'recursive', 'multithreaded', 'C-extension', 'duplicate-detection',
-        'disk-usage', 'audit', 'enterprise', 'pwd', 'cwd', 'current-directory',
-        'mascot'
+        'disk-usage', 'disk-space', 'byte-totals', 'file-size',
+        'audit', 'pwd', 'cwd', 'current-directory', 'mascot'
     ],
 )
