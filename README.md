@@ -1,4 +1,4 @@
-# anscom — a filesystem scanner for Python (C extension)
+# anscom — a filesystem scanner for Python (C extension) (update coming soon for windows devices to be used without vs studio dev tools )
 
 ### My self-directed opensource project by learning C and Python internals.
 
